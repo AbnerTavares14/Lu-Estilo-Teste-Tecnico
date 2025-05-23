@@ -14,8 +14,28 @@ def get_user_repository(db: Session = Depends(get_db_session)):
 def get_auth_service(auth_repo: AuthRepository = Depends(get_user_repository)):
     return AuthService(auth_repo)
 
-async def get_current_user(auth_service: AuthService = Depends(get_auth_service)):
-    return auth_service.verify_token(oauth2_scheme)
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), 
+    auth_service: AuthService = Depends(get_auth_service)
+) -> UserModel:
+    try:
+        user = auth_service.verify_token(token) 
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user
+    except HTTPException as e: 
+        raise e 
+    except Exception: 
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
 
 async def restrict_to_role(role: str, user: UserModel = Depends(get_current_user)):
     if user.role != role:

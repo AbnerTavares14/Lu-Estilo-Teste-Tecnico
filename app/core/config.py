@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # POSTGRES_PORT: str = "5432"
     # POSTGRES_DB: str = "luestilo"
     SENTRY_DSN: str = ""
+    ENVIRONMENT: str
 
     class Config:
         env_file = ".env"

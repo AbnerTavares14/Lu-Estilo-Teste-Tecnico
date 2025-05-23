@@ -7,5 +7,5 @@ def init_sentry():
         dsn=settings.SENTRY_DSN,
         integrations=[FastApiIntegration()],
         traces_sample_rate=1.0,
-        environment="development"  
+        environment=settings.ENVIRONMENT  
     )
