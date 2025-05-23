@@ -4,7 +4,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from dotenv import load_dotenv
 from app.db.base import Base
-from app.models.domain import CustomerModel, ProductModel, OrderModel, OrderProduct, UserModel
+from app.models.domain import CustomerModel, ProductModel, OrderModel, OrderProduct, UserModel, RefreshTokenModel
 
 load_dotenv()
 

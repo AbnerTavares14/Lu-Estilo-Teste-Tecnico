@@ -38,3 +38,6 @@ class UserLogin(BaseModel):
         if len(value) < 8:
             raise ValueError("Password must be at least 8 characters long.")
         return value
+    
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(..., description="The refresh token to renew the access token.")
