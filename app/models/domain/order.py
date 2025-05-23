@@ -3,7 +3,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 
 class OrderModel(Base):
     __tablename__ = "orders"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
     status = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False)
