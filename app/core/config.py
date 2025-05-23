@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     # POSTGRES_DB: str = "luestilo"
     SENTRY_DSN: str = ""
     ENVIRONMENT: str
+    ALLOWED_ORIGINS: list[str]
 
     class Config:
         env_file = ".env"

@@ -6,12 +6,13 @@ from starlette.exceptions import HTTPException
 from starlette.middleware.cors import CORSMiddleware
 from app.api.routes.auth_route import auth_route
 from app.api.errors.sentry import init_sentry
+from app.core.config import settings
 
 
 def get_application() -> FastAPI:
     app = FastAPI(
-        title="FastAPI Template",
-        description="A template for FastAPI applications.",
+        title="Lu Estilo API",
+        description="API for Lu Estilo inventory and order management system.",
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -20,7 +21,7 @@ def get_application() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
