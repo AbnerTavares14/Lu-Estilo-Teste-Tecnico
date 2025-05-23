@@ -2,10 +2,10 @@ from fastapi import FastAPI
 from app.api.errors.http_error import http_error_handler
 from app.api.errors.validation_error import http422_error_handler
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 from starlette.middleware.cors import CORSMiddleware
 from app.api.routes.auth_route import auth_route
+from app.api.errors.sentry import init_sentry
 
 
 def get_application() -> FastAPI:
@@ -16,8 +16,8 @@ def get_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+    init_sentry()
 
-    # Middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
