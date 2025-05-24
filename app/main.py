@@ -4,7 +4,7 @@ from app.api.errors.validation_error import http422_error_handler
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 from starlette.middleware.cors import CORSMiddleware
-from app.api.routes.auth_route import auth_route
+from app.api.routes import router
 from app.api.errors.sentry import init_sentry
 from app.core.config import settings
 
@@ -27,7 +27,7 @@ def get_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(auth_route)
+    app.include_router(router)
 
     app.add_event_handler("startup",
         lambda: print("Starting up the application...")                      

@@ -1,21 +1,15 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, EmailStr
 import re
 
-class Customer(BaseModel):
+class CustomerSchema(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="The name of the customer.")
-    email: str = Field(..., min_length=1, max_length=100, description="The email of the customer.")
+    email: EmailStr = Field(..., min_length=1, max_length=100, description="The email of the customer.")
     cpf: str = Field(..., min_length=1, max_length=15, description="The CPF of the customer.")
 
     @field_validator('name')
     def validate_name(cls, value):
         if not value.replace(" ", "").isalpha():
             raise ValueError("Name must contain only alphabetic characters and spaces.")
-        return value
-    
-    @field_validator('email')
-    def validate_email(cls, value):
-        if not value.endswith('@example.com'):
-            raise ValueError("Email must be from the domain 'example.com'.")
         return value
     
     @field_validator('cpf')
@@ -51,4 +45,12 @@ class Customer(BaseModel):
             raise ValueError("Invalid CPF: second check digit is incorrect.")
             
         return cpf_cleaned 
-    
+
+class CustomerResponse(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    cpf: str
+
+    class Config:
+        from_attributes = True

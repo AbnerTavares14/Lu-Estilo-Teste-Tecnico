@@ -1,4 +1,3 @@
-# app/services/auth.py
 from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext

@@ -1,4 +1,3 @@
-# app/api/routes/auth_route.py
 from fastapi import APIRouter, Depends, status
 from starlette.responses import JSONResponse
 from app.api.dependencies.auth import get_auth_service
