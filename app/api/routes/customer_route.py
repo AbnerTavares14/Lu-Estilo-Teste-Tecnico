@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Response, status
 from starlette.responses import JSONResponse
-# from app.api.dependencies.auth import get_auth_service
 from app.api.dependencies.customer import get_customer_service
 from app.api.dependencies.auth import get_current_user
 from app.services.customer import CustomerService

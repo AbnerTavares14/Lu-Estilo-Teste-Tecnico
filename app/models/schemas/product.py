@@ -1,21 +1,16 @@
+from datetime import date
+import datetime
+from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
-class Product(BaseModel):
+class ProductSchema(BaseModel):
     description: str = Field(..., min_length=1, max_length=255, description="The description of the product.")
     price: float = Field(..., gt=0, description="The price of the product.")
     barcode: str = Field(..., min_length=1, max_length=255, description="The barcode of the product.")
     section: str = Field(..., min_length=1, max_length=255, description="The section of the product.")
     stock: int = Field(..., gt=0, description="The stock of the product.")
-    expiry_date: str = Field(..., description="The expiry date of the product.")
+    expiry_date: Optional[date] = None
     image_url: str = Field(..., description="The image URL of the product.")
-
-    @field_validator('description')
-    def validate_description(cls, value):
-        if not value.replace(" ", "").isalpha():
-            raise ValueError("Description must contain only alphabetic characters and spaces.")
-        if len(value) < 10:
-            raise ValueError("Description must be at least 10 characters long.")
-        return value
     
     @field_validator('price')
     def validate_price(cls, value):
@@ -41,14 +36,35 @@ class Product(BaseModel):
             raise ValueError("Stock must be greater than 0.")
         return value
     
-    @field_validator('expiry_date')
+    @field_validator('expiry_date', mode='before')
     def validate_expiry_date(cls, value):
-        if not value.isalnum():
-            raise ValueError("Expiry date must be alphanumeric.")
-        return value
+        if value is None:
+            return value
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value).date()
+            except ValueError:
+                raise ValueError("Expiry date must be a valid date in ISO format (YYYY-MM-DD).")
+        raise ValueError("Expiry date must be a valid date or None.")
 
     @field_validator('image_url')
     def validate_image_url(cls, value):
         if not value.startswith("http://") and not value.startswith("https://"):
             raise ValueError("Image URL must start with 'http://' or 'https://'.")
         return value
+    
+
+class ProductResponse(BaseModel):
+    id: int
+    description: str
+    price: float
+    barcode: str
+    section: str
+    stock: int
+    expiry_date: Optional[date]
+    image_url: str
+
+    class Config:
+        from_attributes = True
