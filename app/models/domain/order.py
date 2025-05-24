@@ -1,15 +1,46 @@
 from app.db.base import Base
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, CheckConstraint
+from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.sql import func
+from datetime import datetime
+from enum import Enum as PyEnum
+
+class OrderStatus(PyEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    CANCELED = "canceled"
+
+OrderStatusEnum = ENUM(
+    "pending",
+    "processing",
+    "completed",
+    "canceled",
+    name="order_status",
+    create_type=False  
+)
 
 class OrderModel(Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
-    status = Column(String, nullable=False)
-    created_at = Column(DateTime, nullable=False)
+    status = Column(OrderStatusEnum, nullable=False, default=OrderStatus.PENDING.value)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=True, onupdate=func.now())
+    total_amount = Column(Float, nullable=False, default=0.0)
+
+    __table_args__ = (
+        CheckConstraint("total_amount >= 0", name="check_total_amount_non_negative"),
+    )
 
 class OrderProduct(Base):
     __tablename__ = "order_products"
     order_id = Column(Integer, ForeignKey("orders.id"), primary_key=True)
     product_id = Column(Integer, ForeignKey("products.id"), primary_key=True)
     quantity = Column(Integer, nullable=False)
+    unit_price = Column(Float, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="check_quantity_positive"),
+        CheckConstraint("unit_price >= 0", name="check_unit_price_non_negative"),
+    )

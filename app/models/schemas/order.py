@@ -1,8 +1,9 @@
+from typing import List
 from pydantic import BaseModel, Field, field_validator
 
-class Order(BaseModel):
+class OrderSchema(BaseModel):
     customer_id: int = Field(..., description="The unique identifier for the user.")
-    product_id: int = Field(..., description="The unique identifier for the product.")
+    product_id: List[int] = Field(..., description="The unique identifier for the product.")
     quantity: int = Field(..., gt=0, description="The quantity of the product.")
     order_date: str = Field(..., description="The date of the order.")
     status: str = Field(..., description="The status of the order.") 
@@ -36,3 +37,17 @@ class Order(BaseModel):
         if value <= 0:
             raise ValueError("Quantity must be greater than 0.")
         return value
+    
+class OrderResponse(BaseModel):
+    id: int
+    customer_id: int
+    customer_name: str
+    product_id: List[int]
+    product_description: str
+    status: str
+    total_price: float
+    quantity: int
+    created_at: str
+
+    class Config:
+        from_attributes = True
