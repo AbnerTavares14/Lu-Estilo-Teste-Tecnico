@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="The username of the user.")
@@ -22,7 +22,9 @@ class UserCreate(BaseModel):
         if not any(char in "!@#$%^&*()-_+=<>?{}[]|:;\"'`~" for char in value):
             raise ValueError("Password must contain at least one special character.")
         return value
-    
+
+    model_config = ConfigDict(from_attributes=True) 
+
 class UserLogin(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="The username of the user.")
     password: str = Field(..., min_length=8, max_length=128, description="The password of the user.")
@@ -39,5 +41,9 @@ class UserLogin(BaseModel):
             raise ValueError("Password must be at least 8 characters long.")
         return value
     
+    model_config = ConfigDict(from_attributes=True)
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(..., description="The refresh token to renew the access token.")
+
+    model_config = ConfigDict(from_attributes=True)

@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.main import app as fastapi_app
 from app.api.dependencies.db import get_db_session
-from app.api.dependencies.db import token_verifier
+from app.api.dependencies.auth import get_current_user
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -25,7 +25,8 @@ def db_session(setup_database):
     session = TestingSessionLocal(bind=connection)
     yield session
     session.close()
-    transaction.rollback()
+    if transaction.is_active: 
+        transaction.rollback()
     connection.close()
 
 @pytest.fixture(scope="function")
@@ -41,11 +42,11 @@ def override_get_db(db_session):
 
 
 @pytest.fixture(scope="function")
-def override_token_verifier(test_user):
-    def _override_token_verifier_func():
+def override_get_current_user(test_user):
+    def _override_get_current_user_func():
         pass 
     
-    fastapi_app.dependency_overrides[token_verifier] = _override_token_verifier_func
+    fastapi_app.dependency_overrides[get_current_user] = _override_get_current_user_func
     yield
     fastapi_app.dependency_overrides.clear()
 
@@ -83,3 +84,8 @@ def test_refresh_token(db_session, test_user):
     db_session.add(refresh_token)
     db_session.commit()
     return refresh_token
+
+@pytest.fixture(autouse=True)
+def disable_sentry(monkeypatch):
+    monkeypatch.setenv("SENTRY_DSN", "")
+    yield

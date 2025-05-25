@@ -1,57 +1,56 @@
 from unittest.mock import patch
 import pytest
 from fastapi import HTTPException, status
-from app.models.domain.refresh_token import RefreshTokenModel
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
+from app.models.domain.refresh_token import RefreshTokenModel
 from app.models.domain.user import UserModel
-from fastapi.testclient import TestClient
 from app.main import app as fastapi_app
-from app.api.dependencies.db import token_verifier
+from app.api.dependencies.auth import get_current_user
+from jose import jwt
+import uuid
 
 @pytest.mark.asyncio
 async def test_refresh_token_success(client: TestClient, test_refresh_token):
-    payload = {
-        "refresh_token": test_refresh_token.token
-    }
+    payload = {"refresh_token": test_refresh_token.token}
     response = client.post("/auth/refresh-token", json=payload)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "access_token" in data
     assert data["token_type"] == "bearer"
-    assert "expires_in" in data
+    assert isinstance(data["expires_in"], int)
+    assert data["expires_in"] > 0
     assert "refresh_token" in data
-    assert data["refresh_token"] != test_refresh_token.token  
-    assert "refresh_expires_in" in data
+    assert data["refresh_token"] != test_refresh_token.token
+    assert isinstance(data["refresh_expires_in"], int)
+    assert data["refresh_expires_in"] > 0
 
 @pytest.mark.asyncio
 async def test_refresh_token_invalid(client: TestClient):
-    payload = {
-        "refresh_token": "invalid_token"
-    }
+    payload = {"refresh_token": "invalid_token"}
     response = client.post("/auth/refresh-token", json=payload)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"errors": ["Invalid refresh token"]}
 
 @pytest.mark.asyncio
 async def test_refresh_token_expired(client: TestClient, db_session: Session, test_user):
+    token_value = str(uuid.uuid4())
     expired_token = RefreshTokenModel(
         user_id=test_user.id,
-        token="expired-123e4567-e89b-12d3-a456-426614174000",
-        expires_at=datetime.now(timezone.utc) - timedelta(days=1),  
+        token=token_value,
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
         created_at=datetime.now(timezone.utc)
     )
     db_session.add(expired_token)
     db_session.commit()
 
-    payload = {
-        "refresh_token": expired_token.token
-    }
+    payload = {"refresh_token": token_value}
     response = client.post("/auth/refresh-token", json=payload)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"errors": ["Refresh token expired"]}
 
-    token = db_session.query(RefreshTokenModel).filter_by(token=expired_token.token).first()
+    token = db_session.query(RefreshTokenModel).filter_by(token=token_value).first()
     assert token is None
 
 @pytest.mark.asyncio
@@ -68,6 +67,22 @@ async def test_register_user_success(client: TestClient, db_session: Session):
     user = db_session.query(UserModel).filter_by(email="new123@gmail.com").first()
     assert user is not None
     assert user.username == "newuser123"
+
+@pytest.mark.asyncio
+async def test_register_user_invalid_input(client: TestClient):
+    payload = {
+        "username": "nu",
+        "email": "invalid",
+        "password": "123"
+    }
+    response = client.post("/auth/register", json=payload)
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    errors = response.json()["errors"]
+    print(errors)  # Manter para depuração
+    assert isinstance(errors, list)
+    assert any("username" in error["loc"] for error in errors)  # Verificar campo
+    assert any("email" in error["loc"] for error in errors)
+    assert any("password" in error["loc"] for error in errors)
 
 @pytest.mark.asyncio
 async def test_register_user_conflict(client: TestClient, test_user):
@@ -95,9 +110,14 @@ async def test_login_success(client: TestClient, test_user):
     data = response.json()
     assert "access_token" in data
     assert data["token_type"] == "bearer"
-    assert "expires_in" in data
+    assert isinstance(data["expires_in"], int)
+    assert data["expires_in"] > 0
     assert "refresh_token" in data
-    assert "refresh_expires_in" in data
+    assert isinstance(data["refresh_expires_in"], int)
+    assert data["refresh_expires_in"] > 0
+
+    decoded = jwt.decode(data["access_token"], key=None, options={"verify_signature": False})
+    assert decoded["sub"] == "testuser123"
 
 @pytest.mark.asyncio
 async def test_login_invalid_credentials(client: TestClient):
@@ -114,24 +134,29 @@ async def test_login_invalid_credentials(client: TestClient):
     assert response.json() == {"errors": ["Invalid credentials"]}
 
 @pytest.mark.asyncio
-async def test_profile_success(client: TestClient, test_user: UserModel):
-    fastapi_app.dependency_overrides[token_verifier] = lambda: test_user
-    try:
-        response = client.get(
-            "/auth/profile",
-            headers={"Authorization": "Bearer some_valid_token"}
-        )
-        assert response.status_code == status.HTTP_200_OK
-        assert response.json() == {"message": "success"}
-    finally:
-        fastapi_app.dependency_overrides.clear()
+async def test_profile_success(client: TestClient, test_user):
+    login_response = client.post(
+        "/auth/login",
+        data={"username": "testuser123", "password": "Secure123!"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+    access_token = login_response.json()["access_token"]
+
+    response = client.get(
+        "/auth/profile",
+        headers={"Authorization": f"Bearer {access_token}"}
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["username"] == "testuser123"
+    assert data["email"] == "test123@gmail.com"
+    assert data["role"] == "user"
 
 @pytest.mark.asyncio
 async def test_profile_invalid_token(client: TestClient):
-    with patch("app.api.dependencies.db.token_verifier", side_effect=HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid access token")):
-        response = client.get(
-            "/auth/profile",
-            headers={"Authorization": "Bearer invalid_token"}
-        )
+    response = client.get(
+        "/auth/profile",
+        headers={"Authorization": "Bearer invalid_token"}
+    )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"errors": ["Invalid access token"]}

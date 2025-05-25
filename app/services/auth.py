@@ -37,9 +37,9 @@ class AuthService:
         return {
             "access_token": token,
             "token_type": "bearer",
-            "expires_in": exp.isoformat(),
+            "expires_in": expires_in,  # Segundos (ex.: 3600)
             "refresh_token": refresh_token,
-            "refresh_expires_in": refresh_exp.isoformat()
+            "refresh_expires_in": refresh_expires_in  # Segundos (ex.: 604800)
         }
 
     def verify_token(self, access_token: str):
@@ -76,14 +76,15 @@ class AuthService:
         access_token = jwt.encode(access_payload, settings.JWT_SECRET, algorithm=settings.ALGORITHM)
 
         self.auth_repo.delete_refresh_token(refresh_token)
-        refresh_exp = datetime.now(timezone.utc) + timedelta(seconds=7 * 24 * 3600)
+        refresh_expires_in = 7 * 24 * 3600  # 7 dias em segundos
+        refresh_exp = datetime.now(timezone.utc) + timedelta(seconds=refresh_expires_in)
         new_refresh_token = str(uuid.uuid4())
         self.auth_repo.create_refresh_token(user_on_db.id, new_refresh_token, refresh_exp)
 
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": access_exp.isoformat(),
+            "expires_in": access_expires_in,  # Segundos (ex.: 3600)
             "refresh_token": new_refresh_token,
-            "refresh_expires_in": refresh_exp.isoformat()
+            "refresh_expires_in": refresh_expires_in  # Segundos (ex.: 604800)
         }
