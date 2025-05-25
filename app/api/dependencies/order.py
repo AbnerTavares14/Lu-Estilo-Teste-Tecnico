@@ -1,23 +1,25 @@
+from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from app.api.dependencies.db import get_db_session
-from app.services.order import OrderService
+from app.api.dependencies.product import get_product_service 
+from app.services.products import ProductService
+
 from app.db.repositories.orders import OrderRepository
-from app.db.repositories.products import ProductRepository
-from app.db.repositories.customers import CustomerRepository
+from app.db.repositories.customers import CustomerRepository 
+from app.services.order import OrderService
 
-def get_order_repository(db: Session = Depends(get_db_session)):
-    return OrderRepository(db)
-
-def get_product_repository(db: Session = Depends(get_db_session)):
-    return ProductRepository(db)
-
-def get_customer_repository(db: Session = Depends(get_db_session)):
+def get_customer_repository(db: Annotated[Session, Depends(get_db_session)]) -> CustomerRepository:
     return CustomerRepository(db)
 
+
+def get_order_repository(db: Annotated[Session, Depends(get_db_session)]) -> OrderRepository:
+    return OrderRepository(db)
+
 def get_order_service(
-    order_repo: OrderRepository = Depends(get_order_repository),
-    product_repo: ProductRepository = Depends(get_product_repository),
-    customer_repo: CustomerRepository = Depends(get_customer_repository)
-):
-    return OrderService(order_repo, product_repo, customer_repo)
+    order_repository: Annotated[OrderRepository, Depends(get_order_repository)],
+    product_service: Annotated[ProductService, Depends(get_product_service)], 
+    customer_repository: Annotated[CustomerRepository, Depends(get_customer_repository)] 
+) -> OrderService:
+    return OrderService(order_repository, product_service, customer_repository)

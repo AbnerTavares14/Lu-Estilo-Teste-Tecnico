@@ -1,179 +1,221 @@
-from typing import List
+# app/services/order.py
+
+from typing import List, Optional
 from fastapi import HTTPException, status as http_status
+from datetime import date as PyDate, timedelta 
+
 from app.db.repositories.orders import OrderRepository
-from app.db.repositories.products import ProductRepository
+from app.services.products import ProductService 
 from app.db.repositories.customers import CustomerRepository
-from app.models.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
+from app.models.domain.order import OrderModel, OrderProduct, OrderStatus 
+from app.models.domain.product import ProductModel
+from app.models.schemas.order import OrderCreate, OrderStatusUpdate 
 
 class OrderService:
     def __init__(
         self,
         order_repository: OrderRepository,
-        product_repository: ProductRepository,
+        product_service: ProductService, 
         customer_repository: CustomerRepository
     ):
         self.order_repository = order_repository
-        self.product_repository = product_repository
+        self.product_service = product_service 
         self.customer_repository = customer_repository
 
-    def create_order(self, order: OrderCreate) -> OrderResponse:
-        customer = self.customer_repository.get_customer_by_id(order.customer_id)
+    def _validate_customer_exists(self, customer_id: int):
+        customer = self.customer_repository.get_customer_by_id(customer_id)
         if not customer:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="Customer not found"
+                detail=f"Customer with ID {customer_id} not found"
             )
+        return customer
 
-        total_amount = 0.0
-        order_items = []
-        for item in order.products:
-            product = self.product_repository.get_product_by_id(item.product_id)
-            if not product:
-                raise HTTPException(
-                    status_code=http_status.HTTP_404_NOT_FOUND,
-                    detail=f"Product with ID {item.product_id} not found"
-                )
-            if product.stock < item.quantity:
-                raise HTTPException(
+    def _prepare_order_items_and_calc_total(
+        self,
+        order_product_inputs: List[dict], 
+        is_update: bool = False,
+        existing_order_products: Optional[List[OrderProduct]] = None
+    ) -> tuple[List[OrderProduct], float]: 
+
+        if is_update and existing_order_products:
+            for old_op in existing_order_products:
+                try:
+                    self.product_service.update_product_stock(
+                        product_id=old_op.product_id,
+                        quantity_change=old_op.quantity,
+                        increase=True 
+                    )
+                except HTTPException as e:
+                    # Logar erro, mas continuar pode ser perigoso para a consistência do estoque.
+                    # Decidir se deve parar a operação ou apenas logar.
+                    # Por segurança, relançar pode ser melhor se a restauração do estoque é crítica.
+                    # Ou marcar o pedido para revisão manual.
+                    print(f"Warning: Could not restore stock for product {old_op.product_id}: {e.detail}")
+
+
+        new_order_product_models = []
+        current_total_amount = 0.0
+
+        for item_input in order_product_inputs:
+            product_model = self.product_service.get_product_by_id(item_input.product_id) 
+
+            if not is_update and product_model.stock < item_input.quantity:
+                 raise HTTPException(
                     status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=f"Insufficient stock for product ID {item.product_id}"
+                    detail=f"Insufficient stock for product ID {item_input.product_id}. Available: {product_model.stock}, Requested: {item_input.quantity}"
                 )
             
-            order_items.append({
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "unit_price": product.price
-            })
-            total_amount += product.price * item.quantity
+            try:
+                self.product_service.update_product_stock(
+                    product_id=product_model.id,
+                    quantity_change=item_input.quantity,
+                    increase=False 
+                )
+            except HTTPException as e:
+                 raise HTTPException(
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to update stock for product {product_model.id}: {e.detail}"
+                )
 
-            product.stock -= item.quantity
-            self.product_repository.update_stock(product)
+            new_op_model = OrderProduct(
+                product_id=product_model.id,
+                quantity=item_input.quantity,
+                unit_price=product_model.price 
+            )
+            new_order_product_models.append(new_op_model)
+            current_total_amount += product_model.price * item_input.quantity
+        
+        return new_order_product_models, current_total_amount
 
 
-        db_order = self.order_repository.create_order(order, total_amount, order_items)
+    def create_order(self, order_data: OrderCreate) -> OrderModel:
+        self._validate_customer_exists(order_data.customer_id)
 
-        db_order.customer_name = customer.name if customer else None
-        return db_order
+        try:
+            OrderStatus(order_data.status)
+        except ValueError:
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=f"Invalid order status: {order_data.status}")
 
-    def get_order_by_id(self, order_id: int) -> OrderResponse:
+        order_product_models, total_amount = self._prepare_order_items_and_calc_total(order_data.products)
+        
+        order_model_to_create = OrderModel(
+            customer_id=order_data.customer_id,
+            status=order_data.status,
+            total_amount=total_amount
+        )
+        
+        return self.order_repository.create_order(order_model_to_create, order_product_models)
+
+    def get_order_by_id(self, order_id: int) -> OrderModel:
         order = self.order_repository.get_order_by_id(order_id)
-        customer = self.customer_repository.get_customer_by_id(order.customer_id)
         if not order:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Order not found"
             )
-        order.customer_name = customer.name if customer else None
-        return order 
+        return order
     
-
     def get_orders(
         self,
         limit: int = 100,
         skip: int = 0,
-        customer_id: int = None,
-        status: str = None,
-        start_date: str = None,
-        end_date: str = None,
-        order_by: str = "order_date",
+        customer_id: Optional[int] = None,
+        status_filter: Optional[str] = None,
+        start_date_str: Optional[str] = None, 
+        end_date_str: Optional[str] = None,   
+        order_by_field: str = "created_at",
         order_direction: str = "desc",
-        section: str = None
+        product_section: Optional[str] = None
+    ) -> List[OrderModel]:
+        if status_filter is not None:
+            try:
+                OrderStatus(status_filter) 
+            except ValueError:
+                raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=f"Invalid order status filter: {status_filter}")
+
+        parsed_start_date: Optional[PyDate] = None
+        if start_date_str:
+            try:
+                parsed_start_date = PyDate.fromisoformat(start_date_str)
+            except ValueError:
+                raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Invalid start_date format. Use YYYY-MM-DD.")
         
-    ) -> List[OrderResponse]:
-        if status is not None:
-            valid_statuses = ["pending", "processing", "completed", "canceled"]
-            if status not in valid_statuses:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=f"Status must be one of {valid_statuses}"
-                )
-        orders = self.order_repository.get_orders(
-            limit=limit,
-            skip=skip,
-            customer_id=customer_id,
-            status=status,
-            start_date=start_date,
-            end_date=end_date,
-            order_by=order_by,
-            order_direction=order_direction,
-            section=section
+        parsed_end_date: Optional[PyDate] = None
+        if end_date_str:
+            try:
+                parsed_end_date = PyDate.fromisoformat(end_date_str)
+            except ValueError:
+                raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Invalid end_date format. Use YYYY-MM-DD.")
+
+        return self.order_repository.get_orders(
+            limit=limit, skip=skip, customer_id=customer_id, status_filter=status_filter,
+            start_date=parsed_start_date, end_date=parsed_end_date,
+            order_by_field=order_by_field, order_direction=order_direction, product_section=product_section
         )
-        for order in orders:
-            customer = self.customer_repository.get_customer_by_id(order.customer_id)
-            order.customer_name = customer.name if customer else None
-        return orders
     
-    def update_order(self, order_id: int, order: OrderCreate) -> OrderResponse:
-        existing_order = self.order_repository.get_order_by_id(order_id)
-        if not existing_order:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="Order not found"
-            )
+    def update_order_status(self, order_id: int, status_update_data: OrderStatusUpdate) -> OrderModel:
+        order_to_update = self.get_order_by_id(order_id) 
 
-        customer = self.customer_repository.get_customer_by_id(order.customer_id)
-        if not customer:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="Customer not found"
-            )
+        new_status = status_update_data.status
+        try:
+            OrderStatus(new_status) 
+        except ValueError:
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=f"Invalid order status: {new_status}")
 
-        for product_response in existing_order.products:
-            product = self.product_repository.get_product_by_id(product_response.product.id)
-            if product:
-                product.stock += product_response.quantity
-                self.product_repository.update_stock(product)
+        # Lógica adicional pode ser necessária aqui (ex: não permitir mudar de 'completed' para 'pending')
+        # ou se a mudança de status deve reverter/afetar estoque (ex: 'canceled' restaura estoque).
+        if order_to_update.status == OrderStatus.CANCELED.value and new_status != OrderStatus.CANCELED.value:
+             pass # Adicionar lógica se cancelamento deve ser revertido de forma especial
 
-        total_amount = 0.0
-        order_items = []
-        for item in order.products:
-            product = self.product_repository.get_product_by_id(item.product_id)
-            if not product:
-                raise HTTPException(
-                    status_code=http_status.HTTP_404_NOT_FOUND,
-                    detail=f"Product with ID {item.product_id} not found"
-                )
-            if product.stock < item.quantity:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=f"Insufficient stock for product ID {item.product_id}"
-                )
-            total_amount += product.price * item.quantity
-            order_items.append({
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "unit_price": product.price
-            })
-            product.stock -= item.quantity
-            self.product_repository.update_stock(product)
+        if new_status == OrderStatus.CANCELED.value and order_to_update.status != OrderStatus.CANCELED.value:
+            # Restaurar estoque se o pedido está sendo cancelado e não estava cancelado antes
+            for op in order_to_update.order_products:
+                try:
+                    self.product_service.update_product_stock(op.product_id, op.quantity, increase=True)
+                except HTTPException as e:
+                    print(f"Warning: Could not restore stock for product {op.product_id} during order cancellation: {e.detail}")
+                    # Considerar se a falha em restaurar estoque deve impedir o cancelamento.
 
-        db_order = self.order_repository.update_order(order_id, total_amount, order_items, order_data=order)
 
-        db_order.customer_name = customer.name
-        return db_order
-    
+        return self.order_repository.update_order_status(order_to_update, new_status)
+
+    def update_order(self, order_id: int, order_update_data: OrderCreate) -> OrderModel:
+        order_to_update = self.order_repository.get_order_by_id_internal(order_id, load_relations=True) 
+        if not order_to_update:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+        self._validate_customer_exists(order_update_data.customer_id)
+        try:
+            OrderStatus(order_update_data.status)
+        except ValueError:
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=f"Invalid order status: {order_update_data.status}")
+
+
+        new_order_product_models, new_total_amount = self._prepare_order_items_and_calc_total(
+            order_update_data.products,
+            is_update=True,
+            existing_order_products=list(order_to_update.order_products) 
+        )
+
+        return self.order_repository.update_order(
+            order_to_update,
+            new_customer_id=order_update_data.customer_id,
+            new_status=order_update_data.status,
+            new_total_amount=new_total_amount,
+            new_order_products=new_order_product_models
+        )
+
     def delete_order(self, order_id: int) -> None:
-        existing_order = self.order_repository.get_order_by_id(order_id)
-        if not existing_order:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="Order not found"
-            )
-        self.order_repository.delete_order(order_id)
+        order_to_delete = self.get_order_by_id(order_id) 
 
-        for item in existing_order.products:
-            product = self.product_repository.get_product_by_id(item.product.id)
-            if product:
-                product.stock += item.quantity
-                self.product_repository.update_stock(product)
-
-    
-    def update_order_status(self, order_id: int, status: OrderStatusUpdate) -> OrderResponse:
-        existing_order = self.order_repository.get_order_by_id(order_id)
-        if not existing_order:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="Order not found"
-            )
-        updated_order = self.order_repository.update_order_status(order_id, status)
-        return updated_order
+        if order_to_delete.status != OrderStatus.CANCELED.value:
+            for op in order_to_delete.order_products:
+                try:
+                    self.product_service.update_product_stock(op.product_id, op.quantity, increase=True)
+                except HTTPException as e:
+                    # Logar erro, mas a deleção do pedido deve prosseguir.
+                    # Pode ser necessário um mecanismo de compensação ou alerta.
+                    print(f"Warning: Could not restore stock for product {op.product_id} during order deletion: {e.detail}")
+        
+        self.order_repository.delete_order(order_to_delete)

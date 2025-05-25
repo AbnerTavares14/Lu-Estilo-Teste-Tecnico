@@ -1,148 +1,122 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
-from fastapi import HTTPException, logger, status
+from typing import List, Optional
+from datetime import date as PyDate, timedelta 
+
 from app.models.domain.order import OrderModel, OrderProduct
-from app.models.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
-from typing import List, Dict
+from app.models.domain.product import ProductModel
+
 
 class OrderRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_order(self, order: OrderCreate, total_amount: float, order_items: List[Dict]) -> OrderResponse:
+    def create_order(self, order_model_data: OrderModel, order_product_models_data: List[OrderProduct]) -> OrderModel:
         try:
-            db_order = OrderModel(
-                customer_id=order.customer_id,
-                status=order.status,
-                total_amount=total_amount
-            )
-            self.db.add(db_order)
-            self.db.flush() 
+            self.db.add(order_model_data)
+            self.db.flush()  
 
-            order_products = [
-                OrderProduct(
-                    order_id=db_order.id,
-                    product_id=item["product_id"],
-                    quantity=item["quantity"],
-                    unit_price=item["unit_price"]
-                )
-                for item in order_items
-            ]
-            self.db.add_all(order_products)
+            for op_model in order_product_models_data:
+                op_model.order_id = order_model_data.id 
+            
+            self.db.add_all(order_product_models_data)
             self.db.commit()
+            self.db.refresh(order_model_data) 
 
-            db_order = self.db.query(OrderModel).options(
-                selectinload(OrderModel.order_products).selectinload(OrderProduct.product)
-            ).filter(OrderModel.id == db_order.id).first()
-
-            return OrderResponse.model_validate(db_order)
-        except IntegrityError as e:
+            # mas se for, esta é a forma.
+            # return self.get_order_by_id_internal(order_model_data.id) # Chama um método interno para recarregar com selectinload
+            return order_model_data # Retorna o objeto já com ID e persistido. Relações podem ser carregadas por lazy/explicitamente.
+        except IntegrityError:
             self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Failed to create order: {str(e.orig)}"
-            )
+            raise 
 
-    def get_order_by_id(self, order_id: int) -> OrderResponse:
-        order = self.db.query(OrderModel).options(
-            selectinload(OrderModel.order_products).selectinload(OrderProduct.product)
-        ).filter(OrderModel.id == order_id).first()
-        if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-        return OrderResponse.model_validate(order)
+    def get_order_by_id_internal(self, order_id: int, load_relations: bool = True) -> Optional[OrderModel]:
+        query = self.db.query(OrderModel)
+        if load_relations:
+            query = query.options(
+                selectinload(OrderModel.customer), 
+                selectinload(OrderModel.order_products).selectinload(OrderProduct.product)
+            )
+        return query.filter(OrderModel.id == order_id).first()
+
+    def get_order_by_id(self, order_id: int) -> Optional[OrderModel]:
+        return self.get_order_by_id_internal(order_id, load_relations=True)
+
 
     def get_orders(
         self,
         limit: int = 100,
         skip: int = 0,
-        customer_id: int = None,
-        status: str = None,
-        start_date: str = None,
-        end_date: str = None,
-        order_by: str = "created_at",
+        customer_id: Optional[int] = None,
+        status_filter: Optional[str] = None, 
+        start_date: Optional[PyDate] = None, 
+        end_date: Optional[PyDate] = None,
+        order_by_field: str = "created_at", 
         order_direction: str = "desc",
-        section: str = None
-    ) -> List[OrderResponse]:
-        print(status)
+        product_section: Optional[str] = None 
+    ) -> List[OrderModel]:
         query = self.db.query(OrderModel).options(
+            selectinload(OrderModel.customer),
             selectinload(OrderModel.order_products).selectinload(OrderProduct.product)
         )
 
         if customer_id is not None:
             query = query.filter(OrderModel.customer_id == customer_id)
-
-        if status is not None:
-            query = query.filter(OrderModel.status == status)
-
+        if status_filter is not None:
+            query = query.filter(OrderModel.status == status_filter)
         if start_date is not None:
             query = query.filter(OrderModel.created_at >= start_date)
-
         if end_date is not None:
-            query = query.filter(OrderModel.created_at <= end_date)
+            query = query.filter(OrderModel.created_at < (end_date + timedelta(days=1)))
+        if product_section is not None:
+            query = query.join(OrderModel.order_products).join(OrderProduct.product).filter(ProductModel.section == product_section).distinct()
 
-        if section is not None:
-            query = query.filter(OrderModel.section == section)
 
-        if order_by == "created_at":
-            if order_direction == "asc":
-                query = query.order_by(OrderModel.created_at.asc())
-            else:
-                query = query.order_by(OrderModel.created_at.desc())
+        # Order by
+        order_column = getattr(OrderModel, order_by_field, OrderModel.created_at)
+        if order_direction == "asc":
+            query = query.order_by(order_column.asc())
+        else:
+            query = query.order_by(order_column.desc())
 
         orders = query.offset(skip).limit(limit).all()
-        return [OrderResponse.model_validate(order) for order in orders]
+        return orders
     
-    def update_order_status(self, order_id: int, status: OrderStatusUpdate) -> OrderResponse:
-        order = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
-        if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-        
-        order.status = status.status
+    def update_order_status(self, order_to_update: OrderModel, new_status: str) -> OrderModel:
+        order_to_update.status = new_status
         self.db.commit()
-        self.db.refresh(order)
-        
-        return OrderResponse.model_validate(order)
+        self.db.refresh(order_to_update)
+        return order_to_update
     
-    def update_order(self, order_id: int, total_amount: float, order_items: List[Dict], order_data: OrderCreate) -> OrderResponse:
+    def update_order(
+        self, 
+        order_to_update: OrderModel, 
+        new_customer_id: int,
+        new_status: str,
+        new_total_amount: float,
+        new_order_products: List[OrderProduct]
+        ) -> OrderModel:
         try:
-            order = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
-            if not order:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+            order_to_update.customer_id = new_customer_id
+            order_to_update.status = new_status
+            order_to_update.total_amount = new_total_amount
 
-            order.customer_id = order_data.customer_id
-            order.status = order_data.status
-            order.total_amount = total_amount
+            for op in list(order_to_update.order_products): 
+                self.db.delete(op)
+            self.db.flush() 
 
-            order.order_products = [
-                OrderProduct(
-                    order_id=order.id,
-                    product_id=item["product_id"],
-                    quantity=item["quantity"],
-                    unit_price=item["unit_price"]
-                )
-                for item in order_items
-            ]
+            order_to_update.order_products = new_order_products 
+            for op_model in new_order_products:
+                op_model.order_id = order_to_update.id 
 
             self.db.commit()
-            self.db.refresh(order)
+            self.db.refresh(order_to_update) 
 
-            order = self.db.query(OrderModel).options(
-                selectinload(OrderModel.order_products).selectinload(OrderProduct.product)
-            ).filter(OrderModel.id == order_id).first()
-
-
-            return OrderResponse.model_validate(order)
-        except IntegrityError as e:
+            return self.get_order_by_id_internal(order_to_update.id, load_relations=True)
+        except IntegrityError:
             self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Failed to update order: {str(e.orig)}"
-            )
+            raise
 
-    def delete_order(self, order_id: int) -> None:
-        order = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
-        if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-        
-        self.db.delete(order)
+    def delete_order(self, order_to_delete: OrderModel) -> None:
+        self.db.delete(order_to_delete)
         self.db.commit()

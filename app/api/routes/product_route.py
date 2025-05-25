@@ -1,87 +1,69 @@
 from fastapi import APIRouter, Depends, Response, status
-from starlette.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
-from typing import Optional
+from typing import List, Optional
+
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.product import get_product_service
 from app.services.products import ProductService
-from app.models.schemas.product import ProductSchema
-from app.models.schemas.product import ProductResponse
+from app.models.schemas.product import ProductSchema, ProductResponse
 
+product_route = APIRouter(
+    prefix="/products",
+    tags=["Products"], 
+    dependencies=[Depends(get_current_user)]
+)
 
-product_route = APIRouter(prefix="/products", tags=["products"], dependencies=[Depends(get_current_user)])
-
-@product_route.get("/")
-def get_products(
+@product_route.get("/", response_model=List[ProductResponse])
+def list_products(
+    skip: int = 0, 
     limit: int = 10,
-    skip: int = 0,
-    product_service: ProductService = Depends(get_product_service),
     section: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     available: Optional[bool] = None,
+    product_service: ProductService = Depends(get_product_service),
 ):
-    products = product_service.get_products(
-        skip=skip, 
-        limit=limit, 
+    product_models = product_service.get_products(
+        skip=skip,
+        limit=limit,
         section=section,
         min_price=min_price,
         max_price=max_price,
         available=available
     )
-    
-    return JSONResponse(
-        content=jsonable_encoder(products),
-        status_code=status.HTTP_200_OK
-    )
+    return product_models 
 
-
-@product_route.get("/{id}")
-def get_product_by_id(
-    id: int,
+@product_route.get("/{product_id}", response_model=ProductResponse)
+def retrieve_product(
+    product_id: int,
     product_service: ProductService = Depends(get_product_service)
 ):
-    product = ProductResponse.model_validate(product_service.get_product_by_id(id))
+    product_model = product_service.get_product_by_id(product_id)
+    return product_model
 
-    return JSONResponse(
-        content=jsonable_encoder(product),
-        status_code=status.HTTP_200_OK
-    )
-
-@product_route.post("/")
-def create_product(
-    product: ProductSchema,
+@product_route.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
+def create_new_product(
+    product_data: ProductSchema,
     product_service: ProductService = Depends(get_product_service)
 ):
-    product_service.create_product(product)
+    created_product_model = product_service.create_product(product_data)
+    return created_product_model 
 
-    return JSONResponse(
-        content={"message": "success"},
-        status_code=status.HTTP_201_CREATED
-    )
-
-@product_route.put("/{id}")
-def update_product(
-    id: int,
-    product: ProductSchema,
+@product_route.put("/{product_id}", response_model=ProductResponse)
+def update_existing_product(
+    product_id: int,
+    product_update_data: ProductSchema,
     product_service: ProductService = Depends(get_product_service)
 ):
-    product = product_service.update_product(id=id, product_with_update=product)
-    product = ProductResponse.model_validate(product)
-
-    return JSONResponse(
-        content=jsonable_encoder(product),
-        status_code=status.HTTP_200_OK
+    updated_product_model = product_service.update_product(
+        product_id=product_id,
+        product_update_data=product_update_data
     )
+    return updated_product_model 
 
-@product_route.delete("/{id}")
-def delete_product(
-    id: int,
+@product_route.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_product(
+    product_id: int,
     product_service: ProductService = Depends(get_product_service)
 ):
-    product_service.delete_product(id)
-
-    return JSONResponse(
-        content={"message": "success"},
-        status_code=status.HTTP_200_OK
-    )
+    product_service.delete_product(product_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
