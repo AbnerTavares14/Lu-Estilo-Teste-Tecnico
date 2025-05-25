@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Response, status, Query
 from fastapi.encoders import jsonable_encoder
 from starlette.responses import JSONResponse
 from typing import Optional
@@ -26,13 +26,14 @@ def get_orders(
     limit: int = 10,
     skip: int = 0,
     order_service: OrderService = Depends(get_order_service),
-    customer_id: Optional[int] = None,
-    status_order: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    customer_id: Optional[int] = Query(None),
+    status_order: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     order_by: Optional[str] = "order_date",
     order_direction: Optional[str] = "desc",
 ):
+    print(status_order)
     orders = order_service.get_orders(
         skip=skip, 
         limit=limit, 

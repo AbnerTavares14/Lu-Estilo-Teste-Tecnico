@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status as http_status
 from app.db.repositories.orders import OrderRepository
 from app.db.repositories.products import ProductRepository
 from app.db.repositories.customers import CustomerRepository
@@ -20,7 +20,7 @@ class OrderService:
         customer = self.customer_repository.get_customer_by_id(order.customer_id)
         if not customer:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Customer not found"
             )
 
@@ -30,12 +30,12 @@ class OrderService:
             product = self.product_repository.get_product_by_id(item.product_id)
             if not product:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
+                    status_code=http_status.HTTP_404_NOT_FOUND,
                     detail=f"Product with ID {item.product_id} not found"
                 )
             if product.stock < item.quantity:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
                     detail=f"Insufficient stock for product ID {item.product_id}"
                 )
             
@@ -60,7 +60,7 @@ class OrderService:
         customer = self.customer_repository.get_customer_by_id(order.customer_id)
         if not order:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Order not found"
             )
         order.customer_name = customer.name if customer else None
@@ -80,6 +80,13 @@ class OrderService:
         section: str = None
         
     ) -> List[OrderResponse]:
+        if status is not None:
+            valid_statuses = ["pending", "processing", "completed", "canceled"]
+            if status not in valid_statuses:
+                raise HTTPException(
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
+                    detail=f"Status must be one of {valid_statuses}"
+                )
         orders = self.order_repository.get_orders(
             limit=limit,
             skip=skip,
@@ -100,14 +107,14 @@ class OrderService:
         existing_order = self.order_repository.get_order_by_id(order_id)
         if not existing_order:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Order not found"
             )
 
         customer = self.customer_repository.get_customer_by_id(order.customer_id)
         if not customer:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Customer not found"
             )
 
@@ -123,12 +130,12 @@ class OrderService:
             product = self.product_repository.get_product_by_id(item.product_id)
             if not product:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
+                    status_code=http_status.HTTP_404_NOT_FOUND,
                     detail=f"Product with ID {item.product_id} not found"
                 )
             if product.stock < item.quantity:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
                     detail=f"Insufficient stock for product ID {item.product_id}"
                 )
             total_amount += product.price * item.quantity
@@ -149,7 +156,7 @@ class OrderService:
         existing_order = self.order_repository.get_order_by_id(order_id)
         if not existing_order:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Order not found"
             )
         self.order_repository.delete_order(order_id)
@@ -165,7 +172,7 @@ class OrderService:
         existing_order = self.order_repository.get_order_by_id(order_id)
         if not existing_order:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Order not found"
             )
         updated_order = self.order_repository.update_order_status(order_id, status)

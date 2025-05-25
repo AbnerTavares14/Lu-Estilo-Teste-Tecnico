@@ -63,23 +63,24 @@ class OrderRepository:
         order_direction: str = "desc",
         section: str = None
     ) -> List[OrderResponse]:
+        print(status)
         query = self.db.query(OrderModel).options(
             selectinload(OrderModel.order_products).selectinload(OrderProduct.product)
         )
 
-        if customer_id:
+        if customer_id is not None:
             query = query.filter(OrderModel.customer_id == customer_id)
 
-        if status:
+        if status is not None:
             query = query.filter(OrderModel.status == status)
 
-        if start_date:
+        if start_date is not None:
             query = query.filter(OrderModel.created_at >= start_date)
 
-        if end_date:
+        if end_date is not None:
             query = query.filter(OrderModel.created_at <= end_date)
 
-        if section:
+        if section is not None:
             query = query.filter(OrderModel.section == section)
 
         if order_by == "created_at":
