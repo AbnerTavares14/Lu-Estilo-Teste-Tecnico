@@ -29,6 +29,19 @@ def db_session(setup_database):
         transaction.rollback()
     connection.close()
 
+
+@pytest.fixture
+def authenticated_client(client: TestClient, test_user):
+    payload = {"username": "testuser123", "password": "Secure123!"}
+    response = client.post(
+        "/auth/login",
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+    token = response.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {token}"
+    return client
+
 @pytest.fixture(scope="function")
 def override_get_db(db_session):
     def _override_get_db():
