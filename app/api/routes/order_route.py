@@ -5,7 +5,7 @@ from typing import Optional
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.order import get_order_service
 from app.services.order import OrderService
-from app.models.schemas.order import OrderCreate
+from app.models.schemas.order import OrderCreate, OrderStatusUpdate
 
 order_route = APIRouter(prefix="/orders", tags=["orders"], dependencies=[Depends(get_current_user)])
 
@@ -58,5 +58,44 @@ def get_order_by_id(
 
     return JSONResponse(
         content=jsonable_encoder(order),
+        status_code=status.HTTP_200_OK
+)
+
+@order_route.put("/{id}")
+def update_order(
+    id: int,
+    order: OrderCreate,
+    order_service: OrderService = Depends(get_order_service)
+):
+    order_updated = order_service.update_order(id, order)
+
+    return JSONResponse(
+        content=jsonable_encoder(order_updated),
+        status_code=status.HTTP_200_OK
+)
+
+
+@order_route.delete("/{id}")
+def delete_order(
+    id: int,
+    order_service: OrderService = Depends(get_order_service)
+):
+    order_service.delete_order(id)
+
+    return JSONResponse(
+        content={"message": "Order deleted successfully"},
+        status_code=status.HTTP_204_NO_CONTENT
+)
+
+@order_route.patch("/{id}/status")
+def update_order_status(
+    id: int,
+    update_status: OrderStatusUpdate,
+    order_service: OrderService = Depends(get_order_service)
+):
+    order_updated = order_service.update_order_status(id, update_status)
+
+    return JSONResponse(
+        content=jsonable_encoder(order_updated),
         status_code=status.HTTP_200_OK
 )

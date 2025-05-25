@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
-from fastapi import HTTPException, status
+from fastapi import HTTPException, logger, status
 from app.models.domain.order import OrderModel, OrderProduct
-from app.models.schemas.order import OrderCreate, OrderResponse
+from app.models.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
 from typing import List, Dict
 
 class OrderRepository:
@@ -90,3 +90,58 @@ class OrderRepository:
 
         orders = query.offset(skip).limit(limit).all()
         return [OrderResponse.model_validate(order) for order in orders]
+    
+    def update_order_status(self, order_id: int, status: OrderStatusUpdate) -> OrderResponse:
+        order = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+        
+        order.status = status.status
+        self.db.commit()
+        self.db.refresh(order)
+        
+        return OrderResponse.model_validate(order)
+    
+    def update_order(self, order_id: int, total_amount: float, order_items: List[Dict], order_data: OrderCreate) -> OrderResponse:
+        try:
+            order = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
+            if not order:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+            order.customer_id = order_data.customer_id
+            order.status = order_data.status
+            order.total_amount = total_amount
+
+            order.order_products = [
+                OrderProduct(
+                    order_id=order.id,
+                    product_id=item["product_id"],
+                    quantity=item["quantity"],
+                    unit_price=item["unit_price"]
+                )
+                for item in order_items
+            ]
+
+            self.db.commit()
+            self.db.refresh(order)
+
+            order = self.db.query(OrderModel).options(
+                selectinload(OrderModel.order_products).selectinload(OrderProduct.product)
+            ).filter(OrderModel.id == order_id).first()
+
+
+            return OrderResponse.model_validate(order)
+        except IntegrityError as e:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Failed to update order: {str(e.orig)}"
+            )
+
+    def delete_order(self, order_id: int) -> None:
+        order = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+        
+        self.db.delete(order)
+        self.db.commit()

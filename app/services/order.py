@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from app.db.repositories.orders import OrderRepository
 from app.db.repositories.products import ProductRepository
 from app.db.repositories.customers import CustomerRepository
-from app.models.schemas.order import OrderCreate, OrderResponse
+from app.models.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
 
 class OrderService:
     def __init__(
@@ -95,3 +95,78 @@ class OrderService:
             customer = self.customer_repository.get_customer_by_id(order.customer_id)
             order.customer_name = customer.name if customer else None
         return orders
+    
+    def update_order(self, order_id: int, order: OrderCreate) -> OrderResponse:
+        existing_order = self.order_repository.get_order_by_id(order_id)
+        if not existing_order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+
+        customer = self.customer_repository.get_customer_by_id(order.customer_id)
+        if not customer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found"
+            )
+
+        for product_response in existing_order.products:
+            product = self.product_repository.get_product_by_id(product_response.product.id)
+            if product:
+                product.stock += product_response.quantity
+                self.product_repository.update_stock(product)
+
+        total_amount = 0.0
+        order_items = []
+        for item in order.products:
+            product = self.product_repository.get_product_by_id(item.product_id)
+            if not product:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Product with ID {item.product_id} not found"
+                )
+            if product.stock < item.quantity:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Insufficient stock for product ID {item.product_id}"
+                )
+            total_amount += product.price * item.quantity
+            order_items.append({
+                "product_id": item.product_id,
+                "quantity": item.quantity,
+                "unit_price": product.price
+            })
+            product.stock -= item.quantity
+            self.product_repository.update_stock(product)
+
+        db_order = self.order_repository.update_order(order_id, total_amount, order_items, order_data=order)
+
+        db_order.customer_name = customer.name
+        return db_order
+    
+    def delete_order(self, order_id: int) -> None:
+        existing_order = self.order_repository.get_order_by_id(order_id)
+        if not existing_order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+        self.order_repository.delete_order(order_id)
+
+        for item in existing_order.products:
+            product = self.product_repository.get_product_by_id(item.product.id)
+            if product:
+                product.stock += item.quantity
+                self.product_repository.update_stock(product)
+
+    
+    def update_order_status(self, order_id: int, status: OrderStatusUpdate) -> OrderResponse:
+        existing_order = self.order_repository.get_order_by_id(order_id)
+        if not existing_order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+        updated_order = self.order_repository.update_order_status(order_id, status)
+        return updated_order

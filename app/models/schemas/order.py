@@ -43,6 +43,16 @@ class OrderCreate(BaseModel):
             raise ValueError("At least one product must be included in the order")
         return value
 
+class OrderStatusUpdate(BaseModel):
+    status: str
+
+    @field_validator('status')
+    def validate_status(cls, value):
+        valid_statuses = ["pending", "processing", "completed", "canceled"]
+        if value not in valid_statuses:
+            raise ValueError(f"Status must be one of {valid_statuses}")
+        return value
+
 
 class OrderProductResponse(BaseModel):
     product: ProductResponse
