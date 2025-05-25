@@ -2,6 +2,7 @@ from app.db.base import Base
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, CheckConstraint
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from datetime import datetime
 from enum import Enum as PyEnum
 
@@ -17,7 +18,7 @@ OrderStatusEnum = ENUM(
     "completed",
     "canceled",
     name="order_status",
-    create_type=False  
+    create_type=False
 )
 
 class OrderModel(Base):
@@ -29,6 +30,9 @@ class OrderModel(Base):
     updated_at = Column(DateTime, nullable=True, onupdate=func.now())
     total_amount = Column(Float, nullable=False, default=0.0)
 
+    customer = relationship("CustomerModel")
+    order_products = relationship("OrderProduct", back_populates="order", cascade="all, delete-orphan")
+
     __table_args__ = (
         CheckConstraint("total_amount >= 0", name="check_total_amount_non_negative"),
     )
@@ -39,6 +43,9 @@ class OrderProduct(Base):
     product_id = Column(Integer, ForeignKey("products.id"), primary_key=True)
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Float, nullable=False)
+
+    order = relationship("OrderModel", back_populates="order_products")
+    product = relationship("ProductModel")
 
     __table_args__ = (
         CheckConstraint("quantity > 0", name="check_quantity_positive"),

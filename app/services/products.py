@@ -3,7 +3,6 @@ from app.db.repositories.products import ProductRepository
 from fastapi import HTTPException, status
 from app.models.schemas.product import ProductSchema, ProductResponse
 
-
 class ProductService:
     def __init__(self, product_repository: ProductRepository):
         self.product_repository = product_repository
@@ -47,7 +46,20 @@ class ProductService:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Barcode already registered")
         
         return self.product_repository.update_product(id, product_with_update)
-    
+
+    def update_product_stock(self, id: int, quantity: int) -> ProductResponse:
+        product = self.product_repository.get_product_by_id(id)
+        if product is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+        if quantity < 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quantity cannot be negative")
+        
+        if product.stock < quantity:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient stock")
+        
+        product.stock -= quantity
+        return self.product_repository.update_stock(product)
+
     def delete_product(self, id: int):
         product = self.product_repository.get_product_by_id(id)
         if product is None:

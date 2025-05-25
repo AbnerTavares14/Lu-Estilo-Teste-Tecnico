@@ -70,6 +70,13 @@ class ProductRepository:
         self.db.refresh(db_product)
         return ProductResponse.model_validate(db_product)
     
+
+    def update_stock(self, product: ProductModel) -> ProductResponse:
+        db_product = self.get_product_by_id(product.id)
+        db_product.stock = product.stock
+        self.db.commit()
+        self.db.refresh(product)
+        return product
     
     def delete_product(self, product: ProductModel) -> None:
         self.db.delete(product)
