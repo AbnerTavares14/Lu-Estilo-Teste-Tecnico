@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from datetime import datetime
 from typing import List, Optional
 from app.models.schemas.product import ProductResponse
@@ -58,8 +58,7 @@ class OrderProductResponse(BaseModel):
     product: ProductResponse
     quantity: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class OrderResponse(BaseModel):
     id: int
@@ -87,5 +86,4 @@ class OrderResponse(BaseModel):
             ]
         return data
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

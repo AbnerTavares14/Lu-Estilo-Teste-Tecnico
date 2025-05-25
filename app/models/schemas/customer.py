@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, EmailStr
+from pydantic import BaseModel, ConfigDict, Field, field_validator, EmailStr
 import re
 
 class CustomerSchema(BaseModel):
@@ -52,5 +52,4 @@ class CustomerResponse(BaseModel):
     email: EmailStr
     cpf: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
