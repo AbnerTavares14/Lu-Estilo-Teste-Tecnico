@@ -33,55 +33,47 @@ class OrderService:
 
     def _prepare_order_items_and_calc_total(
         self,
-        order_product_inputs: List[dict], 
+        order_product_inputs: List[dict], # Vem de OrderCreate.products
         is_update: bool = False,
         existing_order_products: Optional[List[OrderProduct]] = None
-    ) -> tuple[List[OrderProduct], float]: 
+    ) -> tuple[List[OrderProduct], float]:
 
         if is_update and existing_order_products:
             for old_op in existing_order_products:
-                try:
-                    self.product_service.update_product_stock(
-                        product_id=old_op.product_id,
-                        quantity_change=old_op.quantity,
-                        increase=True 
-                    )
-                except HTTPException as e:
-                    # Logar erro, mas continuar pode ser perigoso para a consistência do estoque.
-                    # Decidir se deve parar a operação ou apenas logar.
-                    # Por segurança, relançar pode ser melhor se a restauração do estoque é crítica.
-                    # Ou marcar o pedido para revisão manual.
-                    print(f"Warning: Could not restore stock for product {old_op.product_id}: {e.detail}")
-
-
+                # AJUSTE: Deixar a exceção do product_service propagar
+                # Se a restauração do estoque falhar, a operação inteira do pedido deve falhar.
+                self.product_service.update_product_stock(
+                    product_id=old_op.product_id,
+                    quantity_change=old_op.quantity,
+                    increase=True
+                )
+        
         new_order_product_models = []
         current_total_amount = 0.0
 
-        for item_input in order_product_inputs:
-            product_model = self.product_service.get_product_by_id(item_input.product_id) 
+        for item_input in order_product_inputs: # item_input é um OrderProductCreate
+            product_model = self.product_service.get_product_by_id(item_input.product_id)
 
-            if not is_update and product_model.stock < item_input.quantity:
+            # A validação de estoque suficiente (product_model.stock < item_input.quantity)
+            # é feita dentro do product_service.update_product_stock (increase=False)
+            # Se a verificação prévia for desejada aqui também (para evitar chamadas desnecessárias), pode ser mantida:
+            if product_model.stock < item_input.quantity: # Checagem de estoque ANTES de tentar debitar
                  raise HTTPException(
                     status_code=http_status.HTTP_400_BAD_REQUEST,
                     detail=f"Insufficient stock for product ID {item_input.product_id}. Available: {product_model.stock}, Requested: {item_input.quantity}"
                 )
-            
-            try:
-                self.product_service.update_product_stock(
-                    product_id=product_model.id,
-                    quantity_change=item_input.quantity,
-                    increase=False 
-                )
-            except HTTPException as e:
-                 raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=f"Failed to update stock for product {product_model.id}: {e.detail}"
-                )
+
+            # AJUSTE: Deixar a exceção do product_service propagar
+            self.product_service.update_product_stock(
+                product_id=product_model.id,
+                quantity_change=item_input.quantity,
+                increase=False 
+            )
 
             new_op_model = OrderProduct(
                 product_id=product_model.id,
                 quantity=item_input.quantity,
-                unit_price=product_model.price 
+                unit_price=product_model.price
             )
             new_order_product_models.append(new_op_model)
             current_total_amount += product_model.price * item_input.quantity
@@ -155,31 +147,39 @@ class OrderService:
         )
     
     def update_order_status(self, order_id: int, status_update_data: OrderStatusUpdate) -> OrderModel:
-        order_to_update = self.get_order_by_id(order_id) 
-
+        order_to_update = self.get_order_by_id(order_id)
         new_status = status_update_data.status
         try:
-            OrderStatus(new_status) 
+            OrderStatus(new_status)
         except ValueError:
             raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=f"Invalid order status: {new_status}")
 
-        # Lógica adicional pode ser necessária aqui (ex: não permitir mudar de 'completed' para 'pending')
-        # ou se a mudança de status deve reverter/afetar estoque (ex: 'canceled' restaura estoque).
-        if order_to_update.status == OrderStatus.CANCELED.value and new_status != OrderStatus.CANCELED.value:
-             pass # Adicionar lógica se cancelamento deve ser revertido de forma especial
-
-        if new_status == OrderStatus.CANCELED.value and order_to_update.status != OrderStatus.CANCELED.value:
-            # Restaurar estoque se o pedido está sendo cancelado e não estava cancelado antes
+        current_status = order_to_update.status # .value se for enum no model
+        
+        # Lógica de cancelamento e restauração de estoque
+        if new_status == OrderStatus.CANCELED.value and current_status != OrderStatus.CANCELED.value:
             for op in order_to_update.order_products:
-                try:
-                    self.product_service.update_product_stock(op.product_id, op.quantity, increase=True)
-                except HTTPException as e:
-                    print(f"Warning: Could not restore stock for product {op.product_id} during order cancellation: {e.detail}")
-                    # Considerar se a falha em restaurar estoque deve impedir o cancelamento.
-
+                # AJUSTE: Deixar a exceção do product_service propagar
+                self.product_service.update_product_stock(op.product_id, op.quantity, increase=True)
+        
+        # Adicione mais lógicas de transição de status e impacto no estoque se necessário
+        # Ex: se um pedido cancelado for reaberto, o estoque precisaria ser debitado novamente.
 
         return self.order_repository.update_order_status(order_to_update, new_status)
 
+    # ... update_order (já usa _prepare_order_items_and_calc_total que foi ajustado) ...
+
+    def delete_order(self, order_id: int) -> None:
+        order_to_delete = self.get_order_by_id(order_id)
+
+        if order_to_delete.status != OrderStatus.CANCELED.value: # Só restaura se não estava já cancelado
+            for op in order_to_delete.order_products:
+                # AJUSTE: Deixar a exceção do product_service propagar
+                self.product_service.update_product_stock(op.product_id, op.quantity, increase=True)
+        
+        self.order_repository.delete_order(order_to_delete)
+
+    
     def update_order(self, order_id: int, order_update_data: OrderCreate) -> OrderModel:
         order_to_update = self.order_repository.get_order_by_id_internal(order_id, load_relations=True) 
         if not order_to_update:

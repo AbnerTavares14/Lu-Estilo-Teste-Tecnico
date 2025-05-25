@@ -14,21 +14,24 @@ class OrderRepository:
     def create_order(self, order_model_data: OrderModel, order_product_models_data: List[OrderProduct]) -> OrderModel:
         try:
             self.db.add(order_model_data)
-            self.db.flush()  
+            self.db.flush()
 
             for op_model in order_product_models_data:
-                op_model.order_id = order_model_data.id 
+                op_model.order_id = order_model_data.id
             
             self.db.add_all(order_product_models_data)
             self.db.commit()
-            self.db.refresh(order_model_data) 
-
-            # mas se for, esta é a forma.
-            # return self.get_order_by_id_internal(order_model_data.id) # Chama um método interno para recarregar com selectinload
-            return order_model_data # Retorna o objeto já com ID e persistido. Relações podem ser carregadas por lazy/explicitamente.
+            # self.db.refresh(order_model_data) # Não é mais necessário se vamos recarregar
+            
+            # AJUSTE: Retornar o objeto com relações carregadas
+            reloaded_order = self.get_order_by_id_internal(order_model_data.id, load_relations=True)
+            if not reloaded_order:
+                # Isso seria muito inesperado, mas é uma verificação de sanidade
+                raise Exception(f"Falha ao recarregar o pedido recém-criado: {order_model_data.id}")
+            return reloaded_order
         except IntegrityError:
             self.db.rollback()
-            raise 
+            raise
 
     def get_order_by_id_internal(self, order_id: int, load_relations: bool = True) -> Optional[OrderModel]:
         query = self.db.query(OrderModel)
@@ -90,7 +93,7 @@ class OrderRepository:
     
     def update_order(
         self, 
-        order_to_update: OrderModel, 
+        order_to_update: OrderModel,
         new_customer_id: int,
         new_status: str,
         new_total_amount: float,
@@ -101,18 +104,29 @@ class OrderRepository:
             order_to_update.status = new_status
             order_to_update.total_amount = new_total_amount
 
-            for op in list(order_to_update.order_products): 
-                self.db.delete(op)
-            self.db.flush() 
+            # Remover itens antigos da coleção atual para que o delete-orphan funcione
+            # ou deletá-los explicitamente se o cascade não estiver configurado para isso ao reatribuir
+            # A forma mais segura é deletar explicitamente os antigos OrderProduct
+            for old_op in list(order_to_update.order_products): # list() para criar uma cópia
+                 self.db.delete(old_op)
+            self.db.flush() # Processa os deletes antes de adicionar novos
 
-            order_to_update.order_products = new_order_products 
-            for op_model in new_order_products:
-                op_model.order_id = order_to_update.id 
+            # Atribuir novos produtos do pedido
+            # As novas instâncias de OrderProduct já devem ter product_id, quantity, unit_price
+            # O order_id será implicitamente definido pelo relacionamento ou explicitamente se necessário.
+            order_to_update.order_products = new_order_products
+            # Se as novas instâncias não tiverem order_id, pode ser necessário:
+            # for op_model in new_order_products:
+            #    op_model.order_id = order_to_update.id # Ou deixar o SQLAlchemy lidar com isso via backref
 
             self.db.commit()
-            self.db.refresh(order_to_update) 
+            # self.db.refresh(order_to_update) # Não é mais necessário se vamos recarregar
 
-            return self.get_order_by_id_internal(order_to_update.id, load_relations=True)
+            # AJUSTE: Retornar o objeto com relações carregadas
+            reloaded_order = self.get_order_by_id_internal(order_to_update.id, load_relations=True)
+            if not reloaded_order:
+                raise Exception(f"Falha ao recarregar o pedido recém-atualizado: {order_to_update.id}")
+            return reloaded_order
         except IntegrityError:
             self.db.rollback()
             raise

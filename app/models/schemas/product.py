@@ -1,5 +1,4 @@
 from datetime import date
-import datetime
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -44,10 +43,10 @@ class ProductSchema(BaseModel):
             return value
         if isinstance(value, str):
             try:
-                return datetime.fromisoformat(value).date()
+                return date.fromisoformat(value)
             except ValueError:
                 raise ValueError("Expiry date must be a valid date in ISO format (YYYY-MM-DD).")
-        raise ValueError("Expiry date must be a valid date or None.")
+        raise ValueError("Expiry date must be a valid date string or None.")
 
     @field_validator('image_url')
     def validate_image_url(cls, value):
