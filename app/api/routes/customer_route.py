@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Response, status
 from starlette.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+from typing import Optional
 from app.api.dependencies.customer import get_customer_service
 from app.api.dependencies.auth import get_current_user
 from app.services.customer import CustomerService
-from typing import Optional
 from app.models.schemas.customer import CustomerSchema
-from fastapi.encoders import jsonable_encoder
 from app.models.schemas.customer import CustomerResponse
 
 customer_route = APIRouter(prefix="/clients", tags=["clients"], dependencies=[Depends(get_current_user)])

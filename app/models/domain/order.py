@@ -1,9 +1,8 @@
 from app.db.base import Base
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, CheckConstraint
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Float, CheckConstraint
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from enum import Enum as PyEnum
 
 class OrderStatus(PyEnum):

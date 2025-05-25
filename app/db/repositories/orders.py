@@ -11,16 +11,14 @@ class OrderRepository:
 
     def create_order(self, order: OrderCreate, total_amount: float, order_items: List[Dict]) -> OrderResponse:
         try:
-            # Criar OrderModel
             db_order = OrderModel(
                 customer_id=order.customer_id,
                 status=order.status,
                 total_amount=total_amount
             )
             self.db.add(db_order)
-            self.db.flush()  # Obter db_order.id
+            self.db.flush() 
 
-            # Criar OrderProduct para cada item
             order_products = [
                 OrderProduct(
                     order_id=db_order.id,

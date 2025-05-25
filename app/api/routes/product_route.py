@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Response, status
 from starlette.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+from typing import Optional
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.product import get_product_service
 from app.services.products import ProductService
-from typing import Optional
 from app.models.schemas.product import ProductSchema
-from fastapi.encoders import jsonable_encoder
 from app.models.schemas.product import ProductResponse
 
 

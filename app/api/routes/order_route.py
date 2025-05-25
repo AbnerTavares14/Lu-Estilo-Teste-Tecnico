@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.encoders import jsonable_encoder
 from starlette.responses import JSONResponse
+from typing import Optional
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.order import get_order_service
 from app.services.order import OrderService
 from app.models.schemas.order import OrderCreate
-from typing import Optional
 
 order_route = APIRouter(prefix="/orders", tags=["orders"], dependencies=[Depends(get_current_user)])
 
