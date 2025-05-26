@@ -1,8 +1,6 @@
-# Git
 .git
 .gitignore
 
-# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -19,21 +17,17 @@ celerybeat-schedule
 dist/
 build/
 
-# Testes
 .pytest_cache/
 .coverage
 htmlcov/
 
-# IDE
 .vscode/
 .idea/
 
-# Docker
 Dockerfile
 docker-compose.yaml
 .dockerignore
 
-# Outros
 *.log
 *.pot
 *.pot~
