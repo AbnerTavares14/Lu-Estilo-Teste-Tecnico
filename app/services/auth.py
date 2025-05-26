@@ -37,9 +37,9 @@ class AuthService:
         return {
             "access_token": token,
             "token_type": "bearer",
-            "expires_in": expires_in,  # Segundos (ex.: 3600)
+            "expires_in": expires_in, 
             "refresh_token": refresh_token,
-            "refresh_expires_in": refresh_expires_in  # Segundos (ex.: 604800)
+            "refresh_expires_in": refresh_expires_in  
         }
 
     def verify_token(self, access_token: str):
@@ -84,7 +84,7 @@ class AuthService:
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": access_expires_in,  # Segundos (ex.: 3600)
+            "expires_in": access_expires_in,  
             "refresh_token": new_refresh_token,
-            "refresh_expires_in": refresh_expires_in  # Segundos (ex.: 604800)
+            "refresh_expires_in": refresh_expires_in  
         }
