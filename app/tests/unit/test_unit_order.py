@@ -9,6 +9,7 @@ from app.models.domain.order import OrderModel, OrderProduct, OrderStatus
 from app.models.domain.product import ProductModel
 from app.models.domain.customer import CustomerModel
 from app.models.schemas.order import OrderCreate, OrderProductCreate
+from app.services import WhatsappService
 
 
 @pytest.fixture
@@ -27,11 +28,21 @@ def mock_customer_repo(mocker):
     return mocker.Mock()
 
 @pytest.fixture
-def order_service(mock_order_repo, mock_product_service, mock_customer_repo):
+def mock_whatsapp_service(mocker): 
+    return mocker.Mock(spec=WhatsappService)
+
+@pytest.fixture
+def order_service(
+    mock_order_repo: Mock, 
+    mock_product_service: Mock, 
+    mock_customer_repo: Mock,
+    mock_whatsapp_service: Mock 
+):
     return OrderService(
         order_repository=mock_order_repo,
         product_service=mock_product_service,
-        customer_repository=mock_customer_repo
+        customer_repository=mock_customer_repo,
+        whatsapp_service=mock_whatsapp_service 
     )
 
 @pytest.fixture
@@ -161,7 +172,7 @@ class TestOrderService:
 
 
 
-    def test_create_order_success(
+    async def test_create_order_success(
         self, order_service: OrderService, mock_order_repo: Mock, mock_customer_repo: Mock, 
         mock_product_service: Mock, sample_order_create_schema: OrderCreate, 
         sample_customer_model: Mock, sample_product1_model: Mock, sample_product2_model: Mock,
@@ -180,7 +191,7 @@ class TestOrderService:
         
         mock_order_repo.create_order.return_value = sample_order_model
 
-        created_order = order_service.create_order(sample_order_create_schema)
+        created_order = await order_service.create_order(sample_order_create_schema)
 
         mock_customer_repo.get_customer_by_id.assert_called_once_with(sample_order_create_schema.customer_id)
         mock_prepare_method.assert_called_once_with(sample_order_create_schema.products)
@@ -191,7 +202,7 @@ class TestOrderService:
 
         assert isinstance(order_model_arg, OrderModel)
         assert order_model_arg.customer_id == sample_order_create_schema.customer_id
-        assert order_model_arg.status == sample_order_create_schema.status 
+        assert order_model_arg.status.value == sample_order_create_schema.status
         assert order_model_arg.total_amount == mock_total_amount
         assert order_product_models_arg == mock_prepared_items
         
@@ -249,7 +260,7 @@ class TestOrderService:
         mock_get_by_id = mocker.patch.object(order_service, 'get_order_by_id', return_value=sample_order_model)
         mock_order_repo.update_order_status.return_value = sample_order_model
 
-    def test_create_order_service_handles_invalid_status_string(
+    async def test_create_order_service_handles_invalid_status_string(
         self, order_service: OrderService, mock_customer_repo: Mock, 
         sample_customer_model: Mock, mocker
     ):
@@ -264,14 +275,14 @@ class TestOrderService:
                             return_value=([], 0.0)) 
 
         with pytest.raises(HTTPException) as exc_info:
-            order_service.create_order(order_data_mock)
+            await order_service.create_order(order_data_mock)
 
         assert exc_info.value.status_code == http_status.HTTP_400_BAD_REQUEST
         assert "Invalid order status: shipped_illegally" in exc_info.value.detail
         mock_customer_repo.get_customer_by_id.assert_called_once_with(sample_customer_model.id)
     
 
-    def test_create_order_service_internal_invalid_status_check(
+    async def test_create_order_service_internal_invalid_status_check(
         self, order_service: OrderService, mock_customer_repo: Mock, 
         sample_customer_model: Mock, mocker
     ):
@@ -285,7 +296,7 @@ class TestOrderService:
         mocker.patch.object(order_service, '_prepare_order_items_and_calc_total', return_value=([], 0.0))
 
         with pytest.raises(HTTPException) as exc_info:
-            order_service.create_order(order_data_mock)
+            await order_service.create_order(order_data_mock)
         
         assert exc_info.value.status_code == http_status.HTTP_400_BAD_REQUEST
         assert f"Invalid order status: {order_data_mock.status}" in exc_info.value.detail

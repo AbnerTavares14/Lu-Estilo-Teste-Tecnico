@@ -31,7 +31,17 @@ class UserCreate(BaseModel):
             raise ValueError(f"Role must be one of {valid_roles}.")
         return value
 
-    model_config = ConfigDict(from_attributes=True) 
+    model_config = ConfigDict(
+            from_attributes=True,
+            json_schema_extra={
+                "example": {
+                    "username": "joaosilva",
+                    "email": "joao.silva@example.com",
+                    "password": "Password123!",
+                    "role": "USER" 
+                }
+            }
+        ) 
 
 class UserLogin(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="The username of the user.")
@@ -49,9 +59,24 @@ class UserLogin(BaseModel):
             raise ValueError("Password must be at least 8 characters long.")
         return value
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+            from_attributes=True,
+            json_schema_extra={
+                "example": {
+                    "username": "joaosilva",
+                    "password": "Password123!"
+                }
+            }
+        )
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(..., description="The refresh token to renew the access token.")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+            from_attributes=True,
+            json_schema_extra={
+                "example": {
+                    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2FvX3NpbHZhIiwidHlwZSI6InJlZnJlc2giLCJleHAiOjE2NzgwMzY4MDB9.xxxxxxxxxxxx"
+                }
+            }
+        )

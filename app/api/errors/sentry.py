@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 class SuppressSentryShutdownFilter(logging.Filter):
     def filter(self, record):
-        # Ignora mensagens de shutdown do Sentry
         return not any(
             msg in record.getMessage()
             for msg in [
@@ -30,15 +29,14 @@ def init_sentry():
     if not settings.SENTRY_DSN:
         logger.warning("SENTRY_DSN not configured, Sentry will not be initialized")
         return
-    # sentry_logger = logging.getLogger("sentry_sdk")
-    # sentry_logger.addFilter(SuppressSentryShutdownFilter())
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         integrations=[
             FastApiIntegration(),
-            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR)
+            LoggingIntegration(level=logging.INFO, event_level=logging.CRITICAL)
         ],
-        traces_sample_rate=1.0,
-        environment=settings.ENVIRONMENT
+        traces_sample_rate=0.1,
+        environment=settings.ENVIRONMENT,
+        before_send=lambda event, hint: None if "http 4" in str(event.get("exception", "")).lower() else event
     )
     logger.info("Sentry initialized successfully")

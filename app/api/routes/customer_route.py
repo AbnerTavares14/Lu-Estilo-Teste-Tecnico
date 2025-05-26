@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from app.services.customer import CustomerService
-from app.api.dependencies.customer import get_customer_service
-from app.api.dependencies.auth import get_current_user
+from app.api.dependencies import get_customer_service
+from app.api.dependencies import get_current_user
 from app.api.dependencies.permissions import require_admin
 from app.models.schemas.customer import CustomerSchema, CustomerResponse
 

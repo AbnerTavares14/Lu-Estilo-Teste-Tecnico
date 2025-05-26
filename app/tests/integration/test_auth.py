@@ -150,7 +150,7 @@ async def test_profile_success(client: TestClient, test_user):
     data = response.json()
     assert data["username"] == "testuser123"
     assert data["email"] == "test123@gmail.com"
-    assert data["role"] == "admin"
+    assert data["role"] == "user"
 
 @pytest.mark.asyncio
 async def test_profile_invalid_token(client: TestClient):

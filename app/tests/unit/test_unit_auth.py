@@ -60,16 +60,24 @@ def sample_refresh_token_model(sample_db_user: UserModel, mocker) -> RefreshToke
 
 class TestAuthService:
 
-    def test_create_user(self, auth_service: AuthService, mock_auth_repo: Mock, sample_user_create: UserCreate):
-        mock_auth_repo.create_user.return_value = "dummy_user_obj"
+    def test_create_user(self, auth_service: AuthService, mock_auth_repo: Mock, sample_user_create: UserCreate, mocker): 
+        mock_returned_user = mocker.Mock(spec=UserModel)
+        mock_auth_repo.create_user.return_value = mock_returned_user
+
         result = auth_service.create_user(sample_user_create)
-        mock_auth_repo.create_user.assert_called_once_with(
-            username=sample_user_create.username,
-            email=sample_user_create.email,
-            password=sample_user_create.password,
-            role="user"
-        )
-        assert result == "dummy_user_obj"
+
+        mock_auth_repo.create_user.assert_called_once()
+
+        args_call, _ = mock_auth_repo.create_user.call_args
+        user_model_arg = args_call[0] 
+
+        assert isinstance(user_model_arg, UserModel)
+        assert user_model_arg.username == sample_user_create.username
+        assert user_model_arg.email == sample_user_create.email
+        assert user_model_arg.password_hash is not None 
+        assert user_model_arg.role == sample_user_create.role 
+
+        assert result == mock_returned_user
 
     def test_authenticate_user_success(
         self, auth_service: AuthService, mock_auth_repo: Mock,

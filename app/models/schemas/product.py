@@ -60,7 +60,23 @@ class ProductSchema(BaseModel):
         if not isinstance(value, list):
             raise ValueError("image_urls must be a list.")
         return value
-
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "description": "Calça Jeans Slim Fit",
+                "price": 189.90,
+                "barcode": "7899876543210",
+                "section": "Jeans",
+                "stock": 75,
+                "expiry_date": None, 
+                "image_urls": [
+                    "https://example.com/images/calca_jeans_frente.jpg",
+                    "https://example.com/images/calca_jeans_detalhe.jpg"
+                ]
+            }
+        }
+    )
 
 class ProductResponse(BaseModel): 
     id: int

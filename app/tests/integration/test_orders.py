@@ -174,7 +174,7 @@ async def test_get_order_by_id_success(authenticated_client: TestClient, created
     data = response.json()
     assert data["id"] == created_order_with_items.id
     assert data["customer_name"] == created_order_with_items.customer.name
-    assert data["status"] == created_order_with_items.status 
+    assert data["status"] == created_order_with_items.status.value
 
 
 @pytest.mark.asyncio

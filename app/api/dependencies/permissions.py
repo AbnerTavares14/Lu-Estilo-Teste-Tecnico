@@ -1,6 +1,8 @@
 from fastapi import Depends, HTTPException, status
 from typing import List
 
+import sentry_sdk
+
 from app.api.dependencies.auth import get_current_user 
 from app.models.domain.user import UserModel 
 from app.models.enum.user import UserRoleEnum 
@@ -15,6 +17,10 @@ class RoleChecker:
         allowed_role_values = [role.value for role in self.allowed_roles]
 
         if user_role_value not in allowed_role_values:
+            sentry_sdk.capture_message(
+                f"Unauthorized access attempt by {current_user.username} to role-restricted endpoint",
+                level="critical"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to perform this action."

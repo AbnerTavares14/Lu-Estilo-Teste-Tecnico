@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Response, status, Query
 from typing import List, Optional
 from datetime import date as PyDate 
 
-from app.api.dependencies.auth import get_current_user
-from app.api.dependencies.order import get_order_service 
-from app.api.dependencies.permissions import require_admin
+from app.api.dependencies import get_current_user
+from app.api.dependencies import get_order_service 
+from app.api.dependencies import require_admin
 from app.services.order import OrderService
 from app.models.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
 

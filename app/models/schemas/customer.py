@@ -71,6 +71,18 @@ class CustomerSchema(BaseModel):
                 return normalized_br_number
             else:
                 raise ValueError("Invalid phone number. Use local (10-11 digits) or E.164 format (+XXXXXXXXXXX).")
+            
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Maria Oliveira",
+                "email": "maria.oliveira@example.com",
+                "cpf": "444.151.740-86", 
+                "phone_number": "+5521912345678"
+            }
+        }
+    )
+    
 class CustomerResponse(BaseModel):
     id: int
     name: str

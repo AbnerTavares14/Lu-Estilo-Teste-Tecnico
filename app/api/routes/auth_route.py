@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, status
 from starlette.responses import JSONResponse
-from app.api.dependencies.auth import get_auth_service
+from app.api.dependencies import get_auth_service
 from app.services.auth import AuthService
 from app.models.schemas.user import UserCreate, UserLogin, RefreshTokenRequest
 from fastapi.security import OAuth2PasswordRequestForm
-from app.api.dependencies.auth import get_current_user
+from app.api.dependencies import get_current_user
 
 auth_route = APIRouter(prefix="/auth", tags=["auth"])
 

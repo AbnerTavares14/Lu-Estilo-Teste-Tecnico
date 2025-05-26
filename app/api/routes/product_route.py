@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Response, status
 from typing import List, Optional
 
-from app.api.dependencies.auth import get_current_user
-from app.api.dependencies.product import get_product_service
-from app.api.dependencies.permissions import require_admin
+from app.api.dependencies import get_current_user
+from app.api.dependencies import get_product_service
+from app.api.dependencies import require_admin
 from app.services.products import ProductService
 from app.models.schemas.product import ProductSchema, ProductResponse
 

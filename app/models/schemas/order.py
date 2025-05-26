@@ -37,12 +37,28 @@ class OrderCreate(BaseModel):
         if value not in valid_statuses:
             raise ValueError(f"Status must be one of {valid_statuses}")
         return value
+    
 
     @field_validator('products')
     def validate_products(cls, value):
         if not value:
             raise ValueError("At least one product must be included in the order")
         return value
+
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "customer_id": 1,
+                "status": "pending", 
+                "products": [
+                    {"product_id": 101, "quantity": 2},
+                    {"product_id": 102, "quantity": 1}
+                ]
+            }
+        }
+    )
+
 
 class OrderStatusUpdate(BaseModel):
     status: str
@@ -56,22 +72,20 @@ class OrderStatusUpdate(BaseModel):
 
 
 class OrderProductResponse(BaseModel):
-    product: ProductResponse  # O produto em si
-    quantity: int             # A quantidade deste produto no pedido
-    unit_price: float         # O preço unitário do produto no momento do pedido
+    product: ProductResponse  
+    quantity: int            
+    unit_price: float        
 
     model_config = ConfigDict(from_attributes=True)
 
-    # Adicionar um model_validator para popular unit_price do OrderProduct
     @model_validator(mode='before')
     @classmethod
     def populate_unit_price_from_orm(cls, data):
         if hasattr(data, 'unit_price') and hasattr(data, 'product') and hasattr(data, 'quantity'):
-             # 'data' aqui é uma instância de OrderProduct (ORM)
             return {
-                'product': data.product, # Será convertido para ProductResponse
+                'product': data.product, 
                 'quantity': data.quantity,
-                'unit_price': data.unit_price # Preço unitário do OrderProduct
+                'unit_price': data.unit_price 
             }
         return data
 
@@ -79,36 +93,35 @@ class OrderProductResponse(BaseModel):
 class OrderResponse(BaseModel):
     id: int
     customer_id: int
-    customer_name: Optional[str] = None # Nome do cliente, populado pelo serviço
+    customer_name: Optional[str] = None 
     status: str
     total_amount: float
-    products: List[OrderProductResponse] # Lista dos produtos no pedido
+    products: List[OrderProductResponse] 
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     @model_validator(mode='before')
     @classmethod
     def prepare_data_from_orm(cls, data):
-        # Se 'data' é um objeto ORM (OrderModel)
         if hasattr(data, 'order_products') and hasattr(data, 'customer'):
             prepared_data = {
                 'id': data.id,
                 'customer_id': data.customer_id,
                 'customer_name': data.customer.name if data.customer else None,
-                'status': data.status.value if isinstance(data.status, PyEnum) else data.status, # Garante que o valor do Enum seja usado
+                'status': data.status.value if isinstance(data.status, PyEnum) else data.status, 
                 'total_amount': data.total_amount,
-                'products': data.order_products, # Passa a lista de OrderProduct (ORM)
+                'products': data.order_products, 
                 'created_at': data.created_at,
                 'updated_at': data.updated_at
             }
             return prepared_data
-        # Se 'data' já for um dict (ex: vindo de um jsonable_encoder anterior)
+
         elif isinstance(data, dict) and 'order_products' in data:
             data['products'] = data.pop('order_products')
             if 'customer' in data and isinstance(data['customer'], dict):
                  data['customer_name'] = data['customer'].get('name')
-            # Garantir que o status seja o valor string
-            if 'status' in data and hasattr(data['status'], 'value'): # se for um enum
+
+            if 'status' in data and hasattr(data['status'], 'value'): 
                 data['status'] = data['status'].value
         return data
 
