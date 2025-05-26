@@ -79,6 +79,7 @@
     - API: `http://localhost:8000`
     - Documentação Swagger: `http://localhost:8000/docs`
     - Documentação ReDoc: `http://localhost:8000/redoc`
+    
 
 5.  **Parar os Contêineres:**
     ```bash
@@ -104,6 +105,8 @@ Os principais grupos de endpoints são:
 - `/orders`: Gerenciamento de pedidos.
 
 Consulte a documentação interativa para exemplos de requisições e respostas para cada endpoint.
+
+### Importante: Para criar clientes, é necessário informar CPFs válidos. Para isso, você pode utilizar o site https://www.4devs.com.br/gerador_de_cpf
 
 ## Migrações do Banco de Dados (Alembic)
 
