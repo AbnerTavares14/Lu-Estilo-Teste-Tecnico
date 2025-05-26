@@ -172,7 +172,7 @@ A aplicação foi configurada para deploy utilizando Docker. Um exemplo de deplo
 - **Administrador (`admin`):**
   - Possui permissões CRUD completas sobre todas as entidades: Clientes, Produtos e Pedidos.
 
-## (Opcional) Próximos Passos / Melhorias Futuras
+## Próximos Passos / Melhorias Futuras
 
 - Implementação de um pipeline de CI/CD completo (ex: GitHub Actions) para automatizar testes e deploy.
 - Sistema de "propriedade" para Clientes e Pedidos, permitindo que usuários regulares gerenciem apenas seus próprios registros.
