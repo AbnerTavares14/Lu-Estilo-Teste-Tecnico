@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+celerybeat-schedule
+*.so
+*.egg-info/
+dist/
+build/
+
+# Testes
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+Dockerfile
+docker-compose.yaml
+.dockerignore
+
+# Outros
+*.log
+*.pot
+*.pot~
+*.mo
+db.sqlite3
+local_settings.py

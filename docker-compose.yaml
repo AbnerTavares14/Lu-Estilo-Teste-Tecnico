@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: luestilo_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+      - POSTGRES_DB=${DB_NAME:-luestilodb}
+    networks:
+      - luestilo_network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-luestilodb}" ]
+      interval: 10s 
+      timeout: 5s 
+      retries: 5 
+      start_period: 10s 
+
+  app:
+    container_name: luestilo_app
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-luestilodb}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - SENTRY_DSN=${SENTRY_DSN:-""}
+      - ENVIRONMENT=${ENVIRONMENT:-docker_development}
+      - ALLOWED_ORIGINS_STR=${ALLOWED_ORIGINS_STR:-"http://localhost:3000,http://127.0.0.1:5173"}
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy 
+    networks:
+      - luestilo_network
+
+volumes:
+  postgres_data:
+
+
+networks:
+  luestilo_network:
+    driver: bridge
