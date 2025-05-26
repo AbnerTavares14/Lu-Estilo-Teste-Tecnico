@@ -1,16 +1,15 @@
 from app.db.base import Base
 from sqlalchemy import Column, Integer, DateTime, ForeignKey, Float, CheckConstraint
-from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.dialects.postgresql import ENUM as SAEnum 
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.enum.order import OrderStatus
 
-OrderStatusEnum = ENUM(
-    "pending",
-    "processing",
-    "completed",
-    "canceled",
+OrderStatusEnum = SAEnum(
+    OrderStatus,
     name="order_status",
+    values_callable=lambda enum_cls: [e.value for e in enum_cls],
+    native_enum=True,
     create_type=False
 )
 

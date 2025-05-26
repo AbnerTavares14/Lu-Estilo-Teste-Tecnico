@@ -31,7 +31,7 @@ class CustomerService:
         existing_client = self.customer_repository.get_customer_by_id(id)
         existing_client.name = client.name
         existing_client.email = client.email
-        existing_client.cpf = client.cpf,
+        existing_client.cpf = client.cpf
         existing_client.phone_number = client.phone_number
         return self.customer_repository.update_customer(existing_client)
 

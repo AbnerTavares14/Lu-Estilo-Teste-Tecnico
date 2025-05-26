@@ -317,7 +317,7 @@ async def test_update_order_success_change_items(
 
 @pytest.mark.asyncio
 async def test_delete_order_success_restores_stock(
-    authenticated_client: TestClient, created_order_with_items: OrderModel,
+    admin_authenticated_client: TestClient, created_order_with_items: OrderModel,
     product1_for_order: ProductModel, product2_for_order: ProductModel, db_session: Session
 ):
     order_id_to_delete = created_order_with_items.id
@@ -345,7 +345,7 @@ async def test_delete_order_success_restores_stock(
         op.quantity for op in live_order_before_delete.order_products if op.product_id == product2_id
     )
 
-    response = authenticated_client.delete(f"/orders/{order_id_to_delete}")
+    response = admin_authenticated_client.delete(f"/orders/{order_id_to_delete}")
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
     order_in_db_after_delete = db_session.get(OrderModel, order_id_to_delete)
@@ -361,8 +361,8 @@ async def test_delete_order_success_restores_stock(
 
 
 @pytest.mark.asyncio
-async def test_delete_order_not_found(authenticated_client: TestClient):
-    response = authenticated_client.delete("/orders/99999")
+async def test_delete_order_not_found(admin_authenticated_client: TestClient):
+    response = admin_authenticated_client.delete("/orders/99999")
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["errors"][0] == "Order not found"
 

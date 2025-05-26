@@ -10,7 +10,8 @@ def test_customer(db_session: Session):
     customer = CustomerModel(
         name="João Silva",
         email="joao.silva@example.com",
-        cpf="78819522020"
+        cpf="78819522020",
+        phone_number="11999999999"  
     )
     db_session.add(customer)
     db_session.commit()
@@ -117,7 +118,8 @@ async def test_update_customer_success(authenticated_client: TestClient, test_cu
     payload = {
         "name": "João Souza",
         "email": "joao.souza@example.com",
-        "cpf": "58693045040"  
+        "cpf": "58693045040",
+        "phone_number": "11999998898"
     }
     response = authenticated_client.put(f"/clients/{test_customer.id}", json=payload)
     assert response.status_code == status.HTTP_200_OK
@@ -125,12 +127,14 @@ async def test_update_customer_success(authenticated_client: TestClient, test_cu
     assert data["name"] == "João Souza"
     assert data["email"] == "joao.souza@example.com"
     assert data["cpf"] == "58693045040"
+    assert data["phone_number"] == "+5511999998898"
 
     updated_customer_from_db = db_session.query(CustomerModel).filter(CustomerModel.id == test_customer.id).first()
     assert updated_customer_from_db is not None
     assert updated_customer_from_db.name == "João Souza"
     assert updated_customer_from_db.email == "joao.souza@example.com"
     assert updated_customer_from_db.cpf == "58693045040"
+    assert updated_customer_from_db.phone_number == "+5511999998898"
 
 @pytest.mark.asyncio
 async def test_update_customer_not_found(authenticated_client: TestClient):
@@ -176,15 +180,15 @@ async def test_update_customer_cpf_conflict(authenticated_client: TestClient, db
     assert response.json() == {"errors": ["CPF already registered"]}
 
 @pytest.mark.asyncio
-async def test_delete_customer_success(authenticated_client: TestClient, test_customer, db_session: Session):
-    response = authenticated_client.delete(f"/clients/{test_customer.id}")
+async def test_delete_customer_success(admin_authenticated_client: TestClient, test_customer, db_session: Session):
+    response = admin_authenticated_client.delete(f"/clients/{test_customer.id}")
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
     customer = db_session.query(CustomerModel).filter_by(id=test_customer.id).first()
     assert customer is None
 
 @pytest.mark.asyncio
-async def test_delete_customer_not_found(authenticated_client: TestClient):
-    response = authenticated_client.delete("/clients/999")
+async def test_delete_customer_not_found(admin_authenticated_client: TestClient):
+    response = admin_authenticated_client.delete("/clients/999")
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json() == {"errors": ["Customer not found"]}

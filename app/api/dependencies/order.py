@@ -9,6 +9,8 @@ from app.services.products import ProductService
 from app.db.repositories.orders import OrderRepository
 from app.db.repositories.customers import CustomerRepository 
 from app.services.order import OrderService
+from app.services.whatsapp_service import WhatsappService
+from app.api.dependencies.whatsapp import get_whatsapp_service
 
 def get_customer_repository(db: Annotated[Session, Depends(get_db_session)]) -> CustomerRepository:
     return CustomerRepository(db)
@@ -17,9 +19,12 @@ def get_customer_repository(db: Annotated[Session, Depends(get_db_session)]) -> 
 def get_order_repository(db: Annotated[Session, Depends(get_db_session)]) -> OrderRepository:
     return OrderRepository(db)
 
+
+
 def get_order_service(
     order_repository: Annotated[OrderRepository, Depends(get_order_repository)],
     product_service: Annotated[ProductService, Depends(get_product_service)], 
-    customer_repository: Annotated[CustomerRepository, Depends(get_customer_repository)] 
+    customer_repository: Annotated[CustomerRepository, Depends(get_customer_repository)], 
+    whatsapp_service: Annotated[WhatsappService, Depends(get_whatsapp_service)] = None
 ) -> OrderService:
-    return OrderService(order_repository, product_service, customer_repository)
+    return OrderService(order_repository, product_service, customer_repository, whatsapp_service)

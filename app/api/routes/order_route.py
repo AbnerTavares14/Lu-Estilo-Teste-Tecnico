@@ -15,11 +15,11 @@ order_route = APIRouter(
 )
 
 @order_route.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
-def create_new_order( 
+async def create_new_order( 
     order_data: OrderCreate,
     order_service: OrderService = Depends(get_order_service)
 ):
-    order_model = order_service.create_order(order_data)
+    order_model = await order_service.create_order(order_data)
     return order_model 
 
 @order_route.get("/", response_model=List[OrderResponse])
@@ -60,12 +60,12 @@ def update_existing_order(
     return order_model
 
 @order_route.patch("/{order_id}/status", response_model=OrderResponse) 
-def update_order_status_only( 
+async def update_order_status_only( 
     order_id: int,
     status_update_data: OrderStatusUpdate,
     order_service: OrderService = Depends(get_order_service)
 ):
-    order_model = order_service.update_order_status(order_id, status_update_data)
+    order_model = await order_service.update_order_status(order_id, status_update_data)
     return order_model
 
 @order_route.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)]) 

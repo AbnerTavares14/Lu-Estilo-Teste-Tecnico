@@ -85,8 +85,10 @@ class OrderRepository:
     def update_order_status(self, order_to_update: OrderModel, new_status: str) -> OrderModel:
         order_to_update.status = new_status
         self.db.commit()
-        self.db.refresh(order_to_update)
-        return order_to_update
+        reloaded_order = self.get_order_by_id_internal(order_to_update.id, load_relations=True)
+        if not reloaded_order:
+            raise Exception(f"Falha ao recarregar o pedido {order_to_update.id} após atualização de status.")
+        return reloaded_order
     
     def update_order(
         self, 

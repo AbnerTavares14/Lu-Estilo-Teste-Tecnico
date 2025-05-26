@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -7,6 +8,10 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     ENVIRONMENT: str
     ALLOWED_ORIGINS: list[str]
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_WHATSAPP_FROM_NUMBER: Optional[str] = None
+    TWILIO_WHATSAPP_TO_NUMBER: Optional[str] = None
 
     class Config:
         env_file = ".env"

@@ -8,6 +8,9 @@ from app.api.dependencies.db import get_db_session
 from app.api.dependencies.auth import get_current_user
 from app.models.domain.product import ProductModel
 from sqlalchemy.orm import Session
+from app.models.domain.user import UserModel
+from app.models.enum.user import UserRoleEnum
+from app.services.auth import crypt_context
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -66,6 +69,50 @@ def override_get_current_user(test_user):
     fastapi_app.dependency_overrides.clear()
 
 
+@pytest.fixture(scope="session") 
+def admin_user_credentials():
+    return {"username": "testadmin", "password": "AdminPassword123!"}
+
+@pytest.fixture(scope="function") 
+def test_admin_user(db_session: Session, admin_user_credentials):
+    admin = db_session.query(UserModel).filter_by(username=admin_user_credentials["username"]).first()
+    if admin:
+        if admin.role != UserRoleEnum.ADMIN:
+            admin.role = UserRoleEnum.ADMIN
+            db_session.commit()
+            db_session.refresh(admin)
+        return admin
+    
+    hashed_password = crypt_context.hash(admin_user_credentials["password"])
+    admin = UserModel(
+        username=admin_user_credentials["username"],
+        email="admin@example.com",
+        password_hash=hashed_password,
+        role=UserRoleEnum.ADMIN 
+    )
+    db_session.add(admin)
+    db_session.commit()
+    db_session.refresh(admin)
+    return admin
+
+@pytest.fixture
+def admin_authenticated_client(client: TestClient, test_admin_user: UserModel, admin_user_credentials):
+    login_data = {
+        "username": admin_user_credentials["username"],
+        "password": admin_user_credentials["password"],
+    }
+    response = client.post("/auth/login", data=login_data) 
+    assert response.status_code == 200, f"Admin login failed: {response.json()}"
+    
+    token = response.json()["access_token"]
+    
+    authed_client = TestClient(fastapi_app) 
+    authed_client.headers = {
+        **client.headers, 
+        "Authorization": f"Bearer {token}",
+    }
+    return authed_client
+
 @pytest.fixture(scope="function")
 def client(override_get_db):
     with TestClient(fastapi_app) as client:
@@ -80,7 +127,7 @@ def test_user(db_session):
         username="testuser123",
         email="test123@gmail.com",
         password_hash=crypt_context.hash("Secure123!"),
-        role="user"
+        role="USER"
     )
     db_session.add(user)
     db_session.commit()
@@ -102,7 +149,7 @@ def test_refresh_token(db_session, test_user):
 
 @pytest.fixture
 def product_section_A_barcode() -> str:
-    return "FILTER_SEC_A_PROD_UNIQUE" # Garanta unicidade
+    return "FILTER_SEC_A_PROD_UNIQUE" 
 
 @pytest.fixture
 def product_section_A_for_filter(db_session: Session, product_section_A_barcode: str) -> ProductModel:

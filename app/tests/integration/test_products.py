@@ -68,8 +68,8 @@ def created_product(db_session: Session, test_product_payload):
 
 
 @pytest.mark.asyncio
-async def test_create_product_success(authenticated_client: TestClient, test_product_payload, db_session: Session):
-    response = authenticated_client.post("/products/", json=test_product_payload)
+async def test_create_product_success(admin_authenticated_client: TestClient, test_product_payload, db_session: Session):
+    response = admin_authenticated_client.post("/products/", json=test_product_payload)
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     
@@ -97,7 +97,7 @@ async def test_create_product_success(authenticated_client: TestClient, test_pro
     assert db_image_urls == expected_urls
 
 @pytest.mark.asyncio
-async def test_create_product_barcode_conflict(authenticated_client: TestClient, created_product):
+async def test_create_product_barcode_conflict(admin_authenticated_client: TestClient, created_product):
     conflict_payload = {
         "description": "Another Product Same Barcode",
         "price": 10.0,
@@ -106,12 +106,12 @@ async def test_create_product_barcode_conflict(authenticated_client: TestClient,
         "stock": 1,
         "image_urls": [VALID_IMAGE_URL_3] 
     }
-    response = authenticated_client.post("/products/", json=conflict_payload)
+    response = admin_authenticated_client.post("/products/", json=conflict_payload)
     assert response.status_code == status.HTTP_409_CONFLICT
     assert response.json()["errors"][0] == "Barcode already registered"
 
 @pytest.mark.asyncio
-async def test_create_product_invalid_input_schema(authenticated_client: TestClient):
+async def test_create_product_invalid_input_schema(admin_authenticated_client: TestClient):
     invalid_payload = {
         "description": "", 
         "price": -10.0, 
@@ -121,7 +121,7 @@ async def test_create_product_invalid_input_schema(authenticated_client: TestCli
         "expiry_date": "not-a-date",
         "image_urls": ["ftp://example.com/image.png", "not_a_valid_url"] 
     }
-    response = authenticated_client.post("/products/", json=invalid_payload)
+    response = admin_authenticated_client.post("/products/", json=invalid_payload)
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     errors = response.json()["errors"]
     
@@ -159,7 +159,7 @@ async def test_get_product_by_id_not_found(authenticated_client: TestClient):
     assert response.json()["errors"][0] == "Product not found"
 
 @pytest.mark.asyncio
-async def test_update_product_success(authenticated_client: TestClient, created_product: ProductModel, db_session: Session):
+async def test_update_product_success(admin_authenticated_client: TestClient, created_product: ProductModel, db_session: Session):
     product_id_to_update = created_product.id
     new_image_list = [VALID_IMAGE_URL_3, "https://newdomain.com/new_image.jpeg"]
     
@@ -172,7 +172,7 @@ async def test_update_product_success(authenticated_client: TestClient, created_
         "expiry_date": (date.today() + timedelta(days=45)).isoformat(),
         "image_urls": new_image_list
     }
-    response = authenticated_client.put(f"/products/{product_id_to_update}", json=update_payload)
+    response = admin_authenticated_client.put(f"/products/{product_id_to_update}", json=update_payload)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
 
@@ -188,7 +188,7 @@ async def test_update_product_success(authenticated_client: TestClient, created_
     assert sorted([img.url for img in db_product.images]) == sorted(new_image_list)
 
 @pytest.mark.asyncio
-async def test_update_product_remove_all_images(authenticated_client: TestClient, created_product: ProductModel, db_session: Session):
+async def test_update_product_remove_all_images(admin_authenticated_client: TestClient, created_product: ProductModel, db_session: Session):
     product_id_to_update = created_product.id 
     
     update_payload = { 
@@ -199,7 +199,7 @@ async def test_update_product_remove_all_images(authenticated_client: TestClient
         "stock": created_product.stock,
         "image_urls": []
     }
-    response = authenticated_client.put(f"/products/{product_id_to_update}", json=update_payload)
+    response = admin_authenticated_client.put(f"/products/{product_id_to_update}", json=update_payload)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "images" in data
@@ -210,17 +210,17 @@ async def test_update_product_remove_all_images(authenticated_client: TestClient
     assert len(db_product.images) == 0
 
 @pytest.mark.asyncio
-async def test_update_product_not_found(authenticated_client: TestClient, test_product_payload):
-    response = authenticated_client.put("/products/99999", json=test_product_payload)
+async def test_update_product_not_found(admin_authenticated_client: TestClient, test_product_payload):
+    response = admin_authenticated_client.put("/products/99999", json=test_product_payload)
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["errors"][0] == "Product not found"
 
 @pytest.mark.asyncio
-async def test_update_product_barcode_conflict(authenticated_client: TestClient, created_product: ProductModel, test_product_payload_beta, db_session: Session):
+async def test_update_product_barcode_conflict(admin_authenticated_client: TestClient, created_product: ProductModel, test_product_payload_beta, db_session: Session):
     product_to_update_id = created_product.id 
 
     payload_beta_api = test_product_payload_beta.copy()
-    res_beta = authenticated_client.post("/products/", json=payload_beta_api)
+    res_beta = admin_authenticated_client.post("/products/", json=payload_beta_api)
     assert res_beta.status_code == status.HTTP_201_CREATED
     product_beta_data = res_beta.json()
     product_beta_barcode = product_beta_data["barcode"]
@@ -231,7 +231,7 @@ async def test_update_product_barcode_conflict(authenticated_client: TestClient,
         "section": "ConflictSection", "stock": 10,
         "image_urls": [VALID_IMAGE_URL_1] 
     }
-    response = authenticated_client.put(f"/products/{product_to_update_id}", json=update_conflict_payload)
+    response = admin_authenticated_client.put(f"/products/{product_to_update_id}", json=update_conflict_payload)
     assert response.status_code == status.HTTP_409_CONFLICT
     assert response.json()["errors"][0] == "Barcode already registered for another product"
 
@@ -261,8 +261,8 @@ async def test_get_products_list_includes_images(authenticated_client: TestClien
 
 
 @pytest.mark.asyncio
-async def test_delete_product_success(authenticated_client: TestClient, created_product, db_session: Session):
-    response = authenticated_client.delete(f"/products/{created_product.id}")
+async def test_delete_product_success(admin_authenticated_client: TestClient, created_product, db_session: Session):
+    response = admin_authenticated_client.delete(f"/products/{created_product.id}")
     assert response.status_code == status.HTTP_204_NO_CONTENT
     assert not response.content 
 
@@ -270,8 +270,8 @@ async def test_delete_product_success(authenticated_client: TestClient, created_
     assert db_product is None
 
 @pytest.mark.asyncio
-async def test_delete_product_not_found(authenticated_client: TestClient):
-    response = authenticated_client.delete("/products/99999")
+async def test_delete_product_not_found(admin_authenticated_client: TestClient):
+    response = admin_authenticated_client.delete("/products/99999")
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["errors"][0] == "Product not found"
 
@@ -333,7 +333,7 @@ async def test_get_products_list_success_and_pagination(authenticated_client: Te
 
 @pytest.mark.asyncio
 async def test_get_products_with_filters(
-    authenticated_client: TestClient, db_session: Session,
+    admin_authenticated_client: TestClient, db_session: Session,
     test_product_payload, 
     test_product_payload_beta, 
     test_product_payload_gamma_section_a 
@@ -342,20 +342,20 @@ async def test_get_products_with_filters(
     db_session.query(ProductModel).delete()
     db_session.commit()
 
-    res_p1 = authenticated_client.post("/products/", json=test_product_payload)
+    res_p1 = admin_authenticated_client.post("/products/", json=test_product_payload)
     assert res_p1.status_code == status.HTTP_201_CREATED, f"P1 creation failed: {res_p1.json()}"
     p1_data_from_api = res_p1.json()
 
-    res_p2 = authenticated_client.post("/products/", json=test_product_payload_beta)
+    res_p2 = admin_authenticated_client.post("/products/", json=test_product_payload_beta)
     assert res_p2.status_code == status.HTTP_201_CREATED, f"P2 creation failed: {res_p2.json()}"
     p2_data_from_api = res_p2.json()
 
-    res_p3 = authenticated_client.post("/products/", json=test_product_payload_gamma_section_a)
+    res_p3 = admin_authenticated_client.post("/products/", json=test_product_payload_gamma_section_a)
     assert res_p3.status_code == status.HTTP_201_CREATED, f"P3 creation failed: {res_p3.json()}"
     p3_data_from_api = res_p3.json()
 
     target_section = p1_data_from_api['section']
-    response_section_a = authenticated_client.get(f"/products/?section={target_section}")
+    response_section_a = admin_authenticated_client.get(f"/products/?section={target_section}")
     assert response_section_a.status_code == status.HTTP_200_OK
     data_section_a = response_section_a.json()
     
@@ -367,19 +367,19 @@ async def test_get_products_with_filters(
         assert "images" in p 
         assert isinstance(p["images"], list)
 
-    response_min_price = authenticated_client.get("/products/?min_price=20.0")
+    response_min_price = admin_authenticated_client.get("/products/?min_price=20.0")
     assert response_min_price.status_code == status.HTTP_200_OK
     data_min_price = response_min_price.json()
     assert len(data_min_price) == 1
     assert data_min_price[0]["barcode"] == p2_data_from_api["barcode"]
 
-    response_max_price = authenticated_client.get("/products/?max_price=10.0")
+    response_max_price = admin_authenticated_client.get("/products/?max_price=10.0")
     assert response_max_price.status_code == status.HTTP_200_OK
     data_max_price = response_max_price.json()
     assert len(data_max_price) == 1
     assert data_max_price[0]["barcode"] == p3_data_from_api["barcode"]
 
-    response_available_true = authenticated_client.get("/products/?available=true")
+    response_available_true = admin_authenticated_client.get("/products/?available=true")
     assert response_available_true.status_code == status.HTTP_200_OK
     data_available_true = response_available_true.json()
     assert len(data_available_true) == 2
@@ -387,19 +387,19 @@ async def test_get_products_with_filters(
     assert p1_data_from_api["barcode"] in barcodes_available_true
     assert p2_data_from_api["barcode"] in barcodes_available_true
 
-    response_available_false = authenticated_client.get("/products/?available=false")
+    response_available_false = admin_authenticated_client.get("/products/?available=false")
     assert response_available_false.status_code == status.HTTP_200_OK
     data_available_false = response_available_false.json()
     assert len(data_available_false) == 1
     assert data_available_false[0]["barcode"] == p3_data_from_api["barcode"]
 
-    response_combined = authenticated_client.get(f"/products/?section={target_section}&available=true")
+    response_combined = admin_authenticated_client.get(f"/products/?section={target_section}&available=true")
     assert response_combined.status_code == status.HTTP_200_OK
     data_combined = response_combined.json()
     assert len(data_combined) == 1
     assert data_combined[0]["barcode"] == p1_data_from_api["barcode"]
 
-    response_combined_price = authenticated_client.get(f"/products/?section={target_section}&max_price=10.0")
+    response_combined_price = admin_authenticated_client.get(f"/products/?section={target_section}&max_price=10.0")
     assert response_combined_price.status_code == status.HTTP_200_OK
     data_combined_price = response_combined_price.json()
     assert len(data_combined_price) == 1

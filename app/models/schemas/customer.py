@@ -48,23 +48,29 @@ class CustomerSchema(BaseModel):
             
         return cpf_cleaned 
     
-        @field_validator('phone_number')
-        def validate_and_clean_phone_number(cls, value: Optional[str]) -> Optional[str]:
-            if value is None:
-                return None 
-            if value.startswith('+'):
-                cleaned_number = '+' + re.sub(r'\D', '', value[1:])
-            else:
-                cleaned_number = re.sub(r'\D', '', value)
-            if cleaned_number.startswith('+'):
-                if not re.fullmatch(r"^\+[1-9]\d{9,14}$", cleaned_number):
-                    raise ValueError("Invalid phone number format. Expected E.164 like format (e.g., +5511999998888) with 10 to 15 digits after '+'.")
-            else:
-                if re.fullmatch(r"^\d{10,11}$", cleaned_number): 
-                    cleaned_number = "+55" + cleaned_number
-                else:
-                    raise ValueError("Invalid phone number format. Please provide digits only or E.164 like format.")
+    @field_validator('phone_number')
+    def validate_and_clean_phone_number(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None 
 
+        if value.startswith('+'):
+            cleaned_number = '+' + re.sub(r'\D', '', value[1:])
+        else:
+            cleaned_number = re.sub(r'\D', '', value)
+
+        if cleaned_number.startswith('+'):
+            if not re.fullmatch(r"^\+[1-9]\d{9,14}$", cleaned_number): 
+                raise ValueError("Invalid international phone number. Expected E.164 (e.g., +5511999998888).")
+            return cleaned_number
+        else: 
+            if re.fullmatch(r"^\d{10,11}$", cleaned_number): # Número local brasileiro (10 ou 11 dígitos)
+                normalized_br_number = "+55" + cleaned_number # Adiciona +55
+                # Revalida após adicionar +55 para garantir que está no formato E.164 esperado
+                if not re.fullmatch(r"^\+55\d{10,11}$", normalized_br_number): # Ex: +5511987654321
+                    raise ValueError("Invalid Brazilian phone number after E.164 normalization.")
+                return normalized_br_number
+            else:
+                raise ValueError("Invalid phone number. Use local (10-11 digits) or E.164 format (+XXXXXXXXXXX).")
 class CustomerResponse(BaseModel):
     id: int
     name: str
