@@ -21,12 +21,9 @@ class OrderRepository:
             
             self.db.add_all(order_product_models_data)
             self.db.commit()
-            # self.db.refresh(order_model_data) # Não é mais necessário se vamos recarregar
-            
-            # AJUSTE: Retornar o objeto com relações carregadas
+
             reloaded_order = self.get_order_by_id_internal(order_model_data.id, load_relations=True)
             if not reloaded_order:
-                # Isso seria muito inesperado, mas é uma verificação de sanidade
                 raise Exception(f"Falha ao recarregar o pedido recém-criado: {order_model_data.id}")
             return reloaded_order
         except IntegrityError:
@@ -78,9 +75,9 @@ class OrderRepository:
         # Order by
         order_column = getattr(OrderModel, order_by_field, OrderModel.created_at)
         if order_direction == "asc":
-            query = query.order_by(order_column.asc())
+            query = query.order_by(order_column.asc(), OrderModel.id.asc())
         else:
-            query = query.order_by(order_column.desc())
+            query = query.order_by(order_column.desc(), OrderModel.id.desc())
 
         orders = query.offset(skip).limit(limit).all()
         return orders
@@ -104,25 +101,14 @@ class OrderRepository:
             order_to_update.status = new_status
             order_to_update.total_amount = new_total_amount
 
-            # Remover itens antigos da coleção atual para que o delete-orphan funcione
-            # ou deletá-los explicitamente se o cascade não estiver configurado para isso ao reatribuir
-            # A forma mais segura é deletar explicitamente os antigos OrderProduct
-            for old_op in list(order_to_update.order_products): # list() para criar uma cópia
+            for old_op in list(order_to_update.order_products): 
                  self.db.delete(old_op)
-            self.db.flush() # Processa os deletes antes de adicionar novos
+            self.db.flush() 
 
-            # Atribuir novos produtos do pedido
-            # As novas instâncias de OrderProduct já devem ter product_id, quantity, unit_price
-            # O order_id será implicitamente definido pelo relacionamento ou explicitamente se necessário.
             order_to_update.order_products = new_order_products
-            # Se as novas instâncias não tiverem order_id, pode ser necessário:
-            # for op_model in new_order_products:
-            #    op_model.order_id = order_to_update.id # Ou deixar o SQLAlchemy lidar com isso via backref
 
             self.db.commit()
-            # self.db.refresh(order_to_update) # Não é mais necessário se vamos recarregar
 
-            # AJUSTE: Retornar o objeto com relações carregadas
             reloaded_order = self.get_order_by_id_internal(order_to_update.id, load_relations=True)
             if not reloaded_order:
                 raise Exception(f"Falha ao recarregar o pedido recém-atualizado: {order_to_update.id}")

@@ -6,6 +6,8 @@ from app.db.base import Base
 from app.main import app as fastapi_app
 from app.api.dependencies.db import get_db_session
 from app.api.dependencies.auth import get_current_user
+from app.models.domain.product import ProductModel
+from sqlalchemy.orm import Session
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -97,6 +99,22 @@ def test_refresh_token(db_session, test_user):
     db_session.add(refresh_token)
     db_session.commit()
     return refresh_token
+
+@pytest.fixture
+def product_section_A_barcode() -> str:
+    return "FILTER_SEC_A_PROD_UNIQUE" # Garanta unicidade
+
+@pytest.fixture
+def product_section_A_for_filter(db_session: Session, product_section_A_barcode: str) -> ProductModel:
+    prod = db_session.query(ProductModel).filter_by(barcode=product_section_A_barcode).first()
+    if prod:
+        prod.stock = 50 # Reset
+        db_session.commit()
+        return prod
+    prod = ProductModel(description="Filter Sec A Prod", price=5.0, barcode=product_section_A_barcode, section="FilterSectionA", stock=50, image_url="https://images.kabum.com.br/produtos/fotos/sync_mirakl/649731/xlarge/Smartphone-Samsung-Galaxy-A06-128GB-Azul-Escuro-4g-Ram-4gb-C-mera-50mp-Selfie-8mp-Tela-6-7-_1742413229.jpg")
+    db_session.add(prod)
+    db_session.commit(); db_session.refresh(prod)
+    return prod
 
 @pytest.fixture(autouse=True)
 def disable_sentry(monkeypatch):
