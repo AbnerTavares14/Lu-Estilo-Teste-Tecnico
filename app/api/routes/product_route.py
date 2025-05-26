@@ -14,7 +14,7 @@ product_route = APIRouter(
 
 @product_route.get("/", response_model=List[ProductResponse])
 def list_products(
-    skip: int = 0, 
+    skip: int = 0,
     limit: int = 10,
     section: Optional[str] = None,
     min_price: Optional[float] = None,
@@ -23,14 +23,10 @@ def list_products(
     product_service: ProductService = Depends(get_product_service),
 ):
     product_models = product_service.get_products(
-        skip=skip,
-        limit=limit,
-        section=section,
-        min_price=min_price,
-        max_price=max_price,
-        available=available
+        skip=skip, limit=limit, section=section,
+        min_price=min_price, max_price=max_price, available=available
     )
-    return product_models 
+    return product_models
 
 @product_route.get("/{product_id}", response_model=ProductResponse)
 def retrieve_product(
@@ -42,11 +38,11 @@ def retrieve_product(
 
 @product_route.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 def create_new_product(
-    product_data: ProductSchema,
+    product_data: ProductSchema, 
     product_service: ProductService = Depends(get_product_service)
 ):
     created_product_model = product_service.create_product(product_data)
-    return created_product_model 
+    return created_product_model
 
 @product_route.put("/{product_id}", response_model=ProductResponse)
 def update_existing_product(

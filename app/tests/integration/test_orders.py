@@ -2,15 +2,17 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, selectinload 
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 import time
 
 from app.models.domain.customer import CustomerModel
-from app.models.domain.product import ProductModel
+from app.models.domain.product import ProductImageModel, ProductModel
 from app.models.domain.order import OrderModel, OrderProduct, OrderStatus 
-from app.models.schemas.order import OrderCreate, OrderProductCreate, OrderStatusUpdate
+from app.models.schemas.order import OrderCreate, OrderProductCreate
 
-VALID_IMAGE_URL = "http://example.com/image.png"
+VALID_IMAGE_URL = "http://example.com/image1.png" 
+VALID_IMAGE_URL_2 = "https://example.com/image2.jpg"
+VALID_IMAGE_URL_3 = "http://example.com/image3.webp"
 
 @pytest.fixture
 def test_customer_for_order(db_session: Session) -> CustomerModel:
@@ -25,61 +27,83 @@ def test_customer_for_order(db_session: Session) -> CustomerModel:
 
 @pytest.fixture
 def product1_for_order(db_session: Session) -> ProductModel:
-    barcode = "ORDERPROD001TEST" 
+    barcode = "ORDERPROD001_V3"
     product = db_session.query(ProductModel).filter_by(barcode=barcode).first()
     if product:
-        product.stock = 20 
+        if product.stock != 20: product.stock = 20
         db_session.commit()
-        db_session.refresh(product)
+        db_session.refresh(product) 
+        db_session.expire(product, ['images']) 
+        _ = product.images
         return product
-    product = ProductModel(
-        description="Order Product One", price=10.00, barcode=barcode,
-        section="SectionOrd1", stock=20, expiry_date=date.today() + timedelta(days=100),
-        image_url=VALID_IMAGE_URL
-    )
-    db_session.add(product)
+
+    product_data = {
+        "description": "Order Product One", "price": 10.00, "barcode": barcode,
+        "section": "SectionOrd1", "stock": 20, 
+        "expiry_date": date.today() + timedelta(days=100)
+    }
+    image_urls_list = [VALID_IMAGE_URL] 
+
+    new_product = ProductModel(**product_data)
+    for url in image_urls_list:
+        new_product.images.append(ProductImageModel(url=url))
+    
+    db_session.add(new_product)
     db_session.commit()
-    db_session.refresh(product)
-    return product
+    db_session.refresh(new_product)
+    db_session.expire(new_product, ['images'])
+    _ = new_product.images
+    return new_product
 
 @pytest.fixture
 def product2_for_order(db_session: Session) -> ProductModel:
-    barcode = "ORDERPROD002TEST" 
+    barcode = "ORDERPROD002_V3"
     product = db_session.query(ProductModel).filter_by(barcode=barcode).first()
     if product:
-        product.stock = 15 
+        if product.stock != 15: product.stock = 15
         db_session.commit()
         db_session.refresh(product)
+        db_session.expire(product, ['images'])
+        _ = product.images
         return product
-    product = ProductModel(
-        description="Order Product Two", price=25.50, barcode=barcode,
-        section="SectionOrd2", stock=15, expiry_date=date.today() + timedelta(days=200),
-        image_url=VALID_IMAGE_URL
-    )
-    db_session.add(product)
+
+    product_data = {
+        "description": "Order Product Two", "price": 25.50, "barcode": barcode,
+        "section": "SectionOrd2", "stock": 15, 
+        "expiry_date": date.today() + timedelta(days=200)
+    }
+    image_urls_list = [VALID_IMAGE_URL_2, VALID_IMAGE_URL_3]
+
+    new_product = ProductModel(**product_data)
+    for url in image_urls_list:
+        new_product.images.append(ProductImageModel(url=url))
+        
+    db_session.add(new_product)
     db_session.commit()
-    db_session.refresh(product)
-    return product
+    db_session.refresh(new_product)
+    db_session.expire(new_product, ['images'])
+    _ = new_product.images
+    return new_product
 
 @pytest.fixture
 def created_order_with_items(
     db_session: Session, authenticated_client: TestClient,
     test_customer_for_order: CustomerModel, product1_for_order: ProductModel, product2_for_order: ProductModel
 ) -> OrderModel:
-    p1 = db_session.merge(product1_for_order)
-    p2 = db_session.merge(product2_for_order)
-
-    order_payload = OrderCreate(
-        customer_id=test_customer_for_order.id,
-        products=[
-            OrderProductCreate(product_id=p1.id, quantity=2),
-            OrderProductCreate(product_id=p2.id, quantity=1)
+    order_payload_dict = {
+        "customer_id": test_customer_for_order.id,
+        "products": [
+            {"product_id": product1_for_order.id, "quantity": 2},
+            {"product_id": product2_for_order.id, "quantity": 1}
         ]
-    )
-    response = authenticated_client.post("/orders/", json=order_payload.model_dump(mode='json'))
-    assert response.status_code == status.HTTP_201_CREATED
+    }
+    response = authenticated_client.post("/orders/", json=order_payload_dict)
+    assert response.status_code == status.HTTP_201_CREATED, f"Order creation failed: {response.json()}"
     created_order_data = response.json()
-    order_in_db = db_session.query(OrderModel).filter(OrderModel.id == created_order_data["id"]).one()
+    order_in_db = db_session.query(OrderModel).options(
+        selectinload(OrderModel.customer),
+        selectinload(OrderModel.order_products).selectinload(OrderProduct.product).selectinload(ProductModel.images)
+    ).filter(OrderModel.id == created_order_data["id"]).one()
     return order_in_db
 
 
@@ -345,23 +369,55 @@ async def test_delete_order_not_found(authenticated_client: TestClient):
 
 @pytest.fixture
 def product_section_A_for_filter(db_session: Session) -> ProductModel:
-    barcode="FILTER_SEC_A_PROD"
-    prod = db_session.query(ProductModel).filter_by(barcode=barcode).first()
-    if prod: return prod
-    prod = ProductModel(description="Filter Sec A Prod", price=5.0, barcode=barcode, section="FilterSectionA", stock=10, image_url=VALID_IMAGE_URL)
-    db_session.add(prod)
-    db_session.commit(); db_session.refresh(prod)
-    return prod
+    barcode = "FILTER_SEC_A_PROD_V3"
+    product = db_session.query(ProductModel).filter_by(barcode=barcode).first()
+    if product:
+        if product.stock != 50: product.stock = 50
+        db_session.commit()
+        db_session.refresh(product)
+        db_session.expire(product, ['images'])
+        _ = product.images
+        return product
+        
+    product_data = {"description": "Filter Sec A Prod", "price": 5.0, "barcode": barcode, "section": "FilterSectionA", "stock": 50}
+    image_urls_list = [VALID_IMAGE_URL]
+
+    new_product = ProductModel(**product_data)
+    for url in image_urls_list:
+        new_product.images.append(ProductImageModel(url=url))
+
+    db_session.add(new_product)
+    db_session.commit()
+    db_session.refresh(new_product)
+    db_session.expire(new_product, ['images'])
+    _ = new_product.images
+    return new_product
 
 @pytest.fixture
 def product_section_B_for_filter(db_session: Session) -> ProductModel:
-    barcode="FILTER_SEC_B_PROD"
-    prod = db_session.query(ProductModel).filter_by(barcode=barcode).first()
-    if prod: return prod
-    prod = ProductModel(description="Filter Sec B Prod", price=5.0, barcode=barcode, section="FilterSectionB", stock=10, image_url=VALID_IMAGE_URL)
-    db_session.add(prod)
-    db_session.commit(); db_session.refresh(prod)
-    return prod
+    barcode = "FILTER_SEC_B_PROD_V3"
+    product = db_session.query(ProductModel).filter_by(barcode=barcode).first()
+    if product:
+        if product.stock != 50: product.stock = 50
+        db_session.commit()
+        db_session.refresh(product)
+        db_session.expire(product, ['images'])
+        _ = product.images
+        return product
+
+    product_data = {"description": "Filter Sec B Prod", "price": 7.50, "barcode": barcode, "section": "FilterSectionB", "stock": 50}
+    image_urls_list = [VALID_IMAGE_URL_2]
+
+    new_product = ProductModel(**product_data)
+    for url in image_urls_list:
+        new_product.images.append(ProductImageModel(url=url))
+        
+    db_session.add(new_product)
+    db_session.commit()
+    db_session.refresh(new_product)
+    db_session.expire(new_product, ['images'])
+    _ = new_product.images
+    return new_product
 
 
 @pytest.mark.asyncio

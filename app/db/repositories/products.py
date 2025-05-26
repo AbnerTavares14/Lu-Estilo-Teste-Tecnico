@@ -1,8 +1,8 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 
-from app.models.domain.product import ProductModel
+from app.models.domain.product import ProductImageModel, ProductModel
 from app.models.schemas.product import ProductSchema 
 
 class ProductRepository:
@@ -10,10 +10,14 @@ class ProductRepository:
         self.db = db
 
     def get_product_by_id(self, product_id: int) -> Optional[ProductModel]:
-        return self.db.query(ProductModel).filter(ProductModel.id == product_id).first()
+        return self.db.query(ProductModel).options(
+            selectinload(ProductModel.images)
+        ).filter(ProductModel.id == product_id).first()
 
     def get_product_by_barcode(self, barcode: str) -> Optional[ProductModel]:
-        return self.db.query(ProductModel).filter(ProductModel.barcode == barcode).first()
+        return self.db.query(ProductModel).options(
+            selectinload(ProductModel.images)
+        ).filter(ProductModel.barcode == barcode).first()
 
     def get_products(
         self,
@@ -25,7 +29,9 @@ class ProductRepository:
         available: Optional[bool] = None,
     ) -> List[ProductModel]:
 
-        query = self.db.query(ProductModel)
+        query = self.db.query(ProductModel).options(
+            selectinload(ProductModel.images)  
+        )
 
         if section:
             query = query.filter(ProductModel.section == section)
@@ -42,31 +48,60 @@ class ProductRepository:
         products = query.order_by(ProductModel.id).offset(skip).limit(limit).all() 
         return products
 
-    def create_product(self, product_data: ProductSchema) -> ProductModel:
-        db_product = ProductModel(**product_data.model_dump())
+    def create_product(self, product_create_data: ProductSchema) -> ProductModel:
+        image_urls_data = product_create_data.image_urls
+        
+        db_product_data = product_create_data.model_dump(exclude={"image_urls"})
+        db_product = ProductModel(**db_product_data)
+        
         try:
             self.db.add(db_product)
+
+            if image_urls_data: 
+                for url in image_urls_data:
+                    db_product.images.append(ProductImageModel(url=str(url))) 
+            
             self.db.commit()
-            self.db.refresh(db_product)
-            return db_product
+            self.db.refresh(db_product) 
+            
+            if db_product.id: 
+                 reloaded_product = self.db.query(ProductModel).options(
+                     selectinload(ProductModel.images)
+                 ).filter(ProductModel.id == db_product.id).first()
+                 if reloaded_product:
+                     return reloaded_product
+            return db_product 
+
         except IntegrityError:
             self.db.rollback()
             raise 
 
     def update_product(
         self,
-        db_product: ProductModel,
+        db_product: ProductModel, 
         product_update_data: ProductSchema 
     ) -> ProductModel:
         
-        update_data_dict = product_update_data.model_dump(exclude_unset=True)
+        update_data_dict = product_update_data.model_dump(exclude_unset=True, exclude={"image_urls"})
         for key, value in update_data_dict.items():
             setattr(db_product, key, value)
-        
+
+        db_product.images.clear()
+        if product_update_data.image_urls:
+            for image_url in product_update_data.image_urls:
+                db_product.images.append(ProductImageModel(url=str(image_url))) 
+
         try:
             self.db.commit()
-            self.db.refresh(db_product)
-            return db_product
+            self.db.refresh(db_product) 
+            reloaded_product = self.db.query(ProductModel).options(
+                selectinload(ProductModel.images)
+            ).filter(ProductModel.id == db_product.id).first()
+            
+            if reloaded_product:
+                return reloaded_product
+            return db_product 
+
         except IntegrityError: 
             self.db.rollback()
             raise 

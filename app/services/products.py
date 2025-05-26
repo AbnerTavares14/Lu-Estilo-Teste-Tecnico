@@ -35,14 +35,23 @@ class ProductService:
         )
 
     def create_product(self, product_create_data: ProductSchema) -> ProductModel:
-        barcode_already_registered = self.product_repository.get_product_by_barcode(product_create_data.barcode)
+        barcode_already_registered = self.product_repository.get_product_by_barcode(
+            product_create_data.barcode
+        )
+
         if barcode_already_registered:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Barcode already registered")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, 
+                detail="Barcode already registered"
+            )
         
         try:
             return self.product_repository.create_product(product_create_data)
         except IntegrityError: 
-             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Barcode already registered (DB integrity)")
+             raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, 
+                detail="Barcode already registered (DB integrity)"
+            )
 
 
     def update_product(self, product_id: int, product_update_data: ProductSchema) -> ProductModel:
@@ -55,13 +64,12 @@ class ProductService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Barcode already registered for another product"
                 )
-        
         try:
             return self.product_repository.update_product(product_to_update, product_update_data)
         except IntegrityError: 
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Update failed due to barcode conflict (DB integrity)"
+                detail="Update failed due to data conflict (e.g., barcode already exists for another product - DB integrity)"
             )
 
 
