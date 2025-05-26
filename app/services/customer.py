@@ -1,7 +1,6 @@
 from app.db.repositories.customers import CustomerRepository
 from app.models.domain.customer import CustomerModel
 from app.models.schemas.customer import CustomerSchema
-from sqlalchemy.orm import Session
 
 class CustomerService:
     def __init__(self, customer_repository: CustomerRepository):
@@ -23,7 +22,8 @@ class CustomerService:
         customer = CustomerModel(
             name=client.name,
             email=client.email,
-            cpf=client.cpf
+            cpf=client.cpf,
+            phone_number=client.phone_number
         )
         return self.customer_repository.create_customer(customer)
 
@@ -31,7 +31,8 @@ class CustomerService:
         existing_client = self.customer_repository.get_customer_by_id(id)
         existing_client.name = client.name
         existing_client.email = client.email
-        existing_client.cpf = client.cpf
+        existing_client.cpf = client.cpf,
+        existing_client.phone_number = client.phone_number
         return self.customer_repository.update_customer(existing_client)
 
     def delete_customer(self, id: int):

@@ -17,17 +17,11 @@ class AuthRepository:
     def get_user_by_username(self, username: str):
         return self.db.query(UserModel).filter(UserModel.username == username).first()
 
-    def create_user(self, username: str, email: str, password: str, role: str = "user"):
-        user_model = UserModel(
-            username=username,
-            email=email,
-            password_hash=crypt_context.hash(password),
-            role=role
-        )
+    def create_user(self, user: UserModel):
         try:
-            self.db.add(user_model)
+            self.db.add(user)
             self.db.commit()
-            return user_model
+            return user
         except IntegrityError:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")

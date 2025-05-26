@@ -4,6 +4,7 @@ class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="The username of the user.")
     email: EmailStr = Field(..., description="The email address of the user.")
     password: str = Field(..., min_length=8, max_length=128, description="The password of the user.")
+    role: str = "USER"
 
     @field_validator('username')
     def validate_username(cls, value):
@@ -21,6 +22,13 @@ class UserCreate(BaseModel):
             raise ValueError("Password must contain at least one letter.")
         if not any(char in "!@#$%^&*()-_+=<>?{}[]|:;\"'`~" for char in value):
             raise ValueError("Password must contain at least one special character.")
+        return value
+    
+    @field_validator('role')
+    def validate_role(cls, value):
+        valid_roles = ["USER", "ADMIN"]
+        if value not in valid_roles:
+            raise ValueError(f"Role must be one of {valid_roles}.")
         return value
 
     model_config = ConfigDict(from_attributes=True) 

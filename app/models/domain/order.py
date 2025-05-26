@@ -3,13 +3,7 @@ from sqlalchemy import Column, Integer, DateTime, ForeignKey, Float, CheckConstr
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
-
-class OrderStatus(PyEnum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    CANCELED = "canceled"
+from app.models.enum.order import OrderStatus
 
 OrderStatusEnum = ENUM(
     "pending",

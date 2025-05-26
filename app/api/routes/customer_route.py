@@ -3,6 +3,7 @@ from typing import List
 from app.services.customer import CustomerService
 from app.api.dependencies.customer import get_customer_service
 from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.permissions import require_admin
 from app.models.schemas.customer import CustomerSchema, CustomerResponse
 
 customer_route = APIRouter(prefix="/clients", tags=["Clients"], dependencies=[Depends(get_current_user)])
@@ -59,7 +60,7 @@ def update_client(
     updated_client = customer_service.update_customer(id, client)
     return CustomerResponse.model_validate(updated_client)
 
-@customer_route.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+@customer_route.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 def delete_client(
     id: int,
     customer_service: CustomerService = Depends(get_customer_service)

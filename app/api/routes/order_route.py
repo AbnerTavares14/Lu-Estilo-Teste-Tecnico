@@ -4,6 +4,7 @@ from datetime import date as PyDate
 
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.order import get_order_service 
+from app.api.dependencies.permissions import require_admin
 from app.services.order import OrderService
 from app.models.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
 
@@ -67,7 +68,7 @@ def update_order_status_only(
     order_model = order_service.update_order_status(order_id, status_update_data)
     return order_model
 
-@order_route.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT) 
+@order_route.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)]) 
 def remove_order( 
     order_id: int,
     order_service: OrderService = Depends(get_order_service)

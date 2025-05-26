@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.product import get_product_service
+from app.api.dependencies.permissions import require_admin
 from app.services.products import ProductService
 from app.models.schemas.product import ProductSchema, ProductResponse
 
@@ -36,7 +37,7 @@ def retrieve_product(
     product_model = product_service.get_product_by_id(product_id)
     return product_model
 
-@product_route.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
+@product_route.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 def create_new_product(
     product_data: ProductSchema, 
     product_service: ProductService = Depends(get_product_service)
@@ -44,7 +45,7 @@ def create_new_product(
     created_product_model = product_service.create_product(product_data)
     return created_product_model
 
-@product_route.put("/{product_id}", response_model=ProductResponse)
+@product_route.put("/{product_id}", response_model=ProductResponse, dependencies=[Depends(require_admin)])
 def update_existing_product(
     product_id: int,
     product_update_data: ProductSchema,
@@ -56,7 +57,7 @@ def update_existing_product(
     )
     return updated_product_model 
 
-@product_route.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@product_route.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 def remove_product(
     product_id: int,
     product_service: ProductService = Depends(get_product_service)

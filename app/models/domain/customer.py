@@ -7,3 +7,4 @@ class CustomerModel(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
     cpf = Column(String, unique=True, nullable=False, index=True)
+    phone_number = Column(String, nullable=True, unique=True, index=True)

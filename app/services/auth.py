@@ -4,6 +4,7 @@ from passlib.context import CryptContext
 import uuid
 from datetime import datetime, timedelta, timezone
 from app.core.config import settings
+from app.models.domain.user import UserModel
 from app.models.schemas.user import UserCreate, UserLogin
 from app.db.repositories.auth import AuthRepository
 
@@ -14,12 +15,13 @@ class AuthService:
         self.auth_repo = auth_repo
 
     def create_user(self, user: UserCreate):
-        return self.auth_repo.create_user(
+        user_model = UserModel(
             username=user.username,
             email=user.email,
-            password=user.password,
-            role="user"
+            password_hash=crypt_context.hash(user.password),
+            role=user.role
         )
+        return self.auth_repo.create_user(user_model)
 
     def authenticate_user(self, user: UserLogin, expires_in: int = 3600, refresh_expires_in: int = 7 * 24 * 3600):
         user_on_db = self.auth_repo.get_user_by_username(user.username)
@@ -76,7 +78,7 @@ class AuthService:
         access_token = jwt.encode(access_payload, settings.JWT_SECRET, algorithm=settings.ALGORITHM)
 
         self.auth_repo.delete_refresh_token(refresh_token)
-        refresh_expires_in = 7 * 24 * 3600  # 7 dias em segundos
+        refresh_expires_in = 7 * 24 * 3600  
         refresh_exp = datetime.now(timezone.utc) + timedelta(seconds=refresh_expires_in)
         new_refresh_token = str(uuid.uuid4())
         self.auth_repo.create_refresh_token(user_on_db.id, new_refresh_token, refresh_exp)

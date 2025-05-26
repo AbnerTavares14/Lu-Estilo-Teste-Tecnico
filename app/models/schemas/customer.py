@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, EmailStr
 import re
 
@@ -5,6 +6,7 @@ class CustomerSchema(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="The name of the customer.")
     email: EmailStr = Field(..., min_length=1, max_length=100, description="The email of the customer.")
     cpf: str = Field(..., min_length=1, max_length=15, description="The CPF of the customer.")
+    phone_number: Optional[str] = Field(None, description="Customer phone number (ex: +5511999998888)") 
 
     @field_validator('name')
     def validate_name(cls, value):
@@ -45,11 +47,29 @@ class CustomerSchema(BaseModel):
             raise ValueError("Invalid CPF: second check digit is incorrect.")
             
         return cpf_cleaned 
+    
+        @field_validator('phone_number')
+        def validate_and_clean_phone_number(cls, value: Optional[str]) -> Optional[str]:
+            if value is None:
+                return None 
+            if value.startswith('+'):
+                cleaned_number = '+' + re.sub(r'\D', '', value[1:])
+            else:
+                cleaned_number = re.sub(r'\D', '', value)
+            if cleaned_number.startswith('+'):
+                if not re.fullmatch(r"^\+[1-9]\d{9,14}$", cleaned_number):
+                    raise ValueError("Invalid phone number format. Expected E.164 like format (e.g., +5511999998888) with 10 to 15 digits after '+'.")
+            else:
+                if re.fullmatch(r"^\d{10,11}$", cleaned_number): 
+                    cleaned_number = "+55" + cleaned_number
+                else:
+                    raise ValueError("Invalid phone number format. Please provide digits only or E.164 like format.")
 
 class CustomerResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
     cpf: str
+    phone_number: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
